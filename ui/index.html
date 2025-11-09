@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlowRAG - GraphRAG Query Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            background: white;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            opacity: 0.7;
+        }
+
+        .tab.active {
+            opacity: 1;
+            background: white;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+
+        .tab:hover {
+            opacity: 0.9;
+        }
+
+        .content {
+            background: white;
+            border-radius: 0 0 12px 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+        }
+
+        .search-box label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .search-box input,
+        .search-box select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .search-box input:focus,
+        .search-box select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .search-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .search-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .search-btn:active {
+            transform: translateY(0);
+        }
+
+        .search-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.1rem;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            margin-top: 30px;
+        }
+
+        .result-card {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            transition: transform 0.2s;
+        }
+
+        .result-card:hover {
+            transform: translateX(5px);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .result-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .result-score {
+            background: #667eea;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+
+        .result-meta {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .result-code {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .llm-answer {
+            background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .llm-answer h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .llm-answer p {
+            color: #333;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .step-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .step-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+
+        .step-num {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            margin-right: 10px;
+            font-weight: 600;
+        }
+
+        .error {
+            background: #fff3cd;
+            border-left: 4px solid #ff6b6b;
+            padding: 20px;
+            border-radius: 8px;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 FlowRAG</h1>
+            <p>GraphRAG Query Interface - Semantic Search & Flow Analysis</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab(event, 'semantic')">
+                🔍 Semantic Search
+            </button>
+            <button class="tab" onclick="switchTab(event, 'flow')">
+                🔄 Flow Analysis
+            </button>
+        </div>
+
+        <div class="content">
+            <!-- Semantic Search Tab -->
+            <div id="semantic" class="tab-content active">
+                <div class="search-box">
+                    <label>Ask a question about the code:</label>
+                    <input type="text" id="semantic-query" placeholder="e.g., How does the system scan for security vulnerabilities?" value="How does the system scan for security vulnerabilities?" />
+                </div>
+
+                <div class="search-box">
+                    <label>Namespace (optional - leave empty to use latest):</label>
+                    <input type="text" id="semantic-namespace" placeholder="Leave empty to use latest" />
+                </div>
+
+                <button class="search-btn" onclick="searchSemantic()">
+                    Search Code
+                </button>
+
+                <div id="semantic-results"></div>
+            </div>
+
+            <!-- Flow Analysis Tab -->
+            <div id="flow" class="tab-content">
+                <div class="search-box">
+                    <label>Namespace (find this in test output):</label>
+                    <input type="text" id="flow-namespace" placeholder="e.g., pipeline_25step_1234567890" />
+                </div>
+
+                <div class="search-box">
+                    <label>Entry Class:</label>
+                    <input type="text" id="flow-class" value="PipelineOrchestrator" />
+                </div>
+
+                <div class="search-box">
+                    <label>Entry Method:</label>
+                    <input type="text" id="flow-method" value="execute_pipeline" />
+                </div>
+
+                <button class="search-btn" onclick="searchFlow()">
+                    Analyze Flow
+                </button>
+
+                <div id="flow-results"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(event, tab) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(tab).classList.add('active');
+        }
+
+        async function searchSemantic() {
+            const query = document.getElementById('semantic-query').value;
+            const namespace = document.getElementById('semantic-namespace').value;
+            const resultsDiv = document.getElementById('semantic-results');
+
+            if (!query) {
+                alert('Please enter a query');
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Searching code...</div>';
+
+            try {
+                const response = await fetch('/api/search/semantic', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: query,
+                        namespace: namespace || null,
+                        limit: 5
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Search failed');
+                }
+
+                const data = await response.json();
+
+                let html = '<div class="results">';
+                html += `<h3>Found ${data.total_results} relevant code segments:</h3>`;
+
+                data.results.forEach((result, idx) => {
+                    html += `
+                        <div class="result-card">
+                            <div class="result-header">
+                                <div class="result-title">${idx + 1}. ${escapeHtml(result.name)}</div>
+                                <div class="result-score">${(result.similarity * 100).toFixed(1)}% match</div>
+                            </div>
+                            <div class="result-meta">
+                                ${escapeHtml(result.type)} • ${escapeHtml(result.file_path)}
+                            </div>
+                            ${result.docstring ? `<p>${escapeHtml(result.docstring)}</p>` : ''}
+                            <div class="result-code">${escapeHtml(result.code_preview)}</div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                    <div class="llm-answer">
+                        <h3>🤖 AI Analysis:</h3>
+                        <p>${escapeHtml(data.llm_answer)}</p>
+                    </div>
+                `;
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ Error: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function searchFlow() {
+            const namespace = document.getElementById('flow-namespace').value;
+            const entryClass = document.getElementById('flow-class').value;
+            const entryMethod = document.getElementById('flow-method').value;
+            const resultsDiv = document.getElementById('flow-results');
+
+            if (!namespace) {
+                alert('Please enter a namespace');
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Analyzing flow...</div>';
+
+            try {
+                const response = await fetch('/api/search/flow', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: 'Trace execution flow',
+                        namespace: namespace,
+                        entry_class: entryClass,
+                        entry_method: entryMethod
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Flow analysis failed');
+                }
+
+                const data = await response.json();
+
+                let html = '<div class="results">';
+
+                if (data.entry_point) {
+                    html += `
+                        <div class="result-card">
+                            <h3>📍 Entry Point: ${escapeHtml(data.entry_point.method)}()</h3>
+                            <p>${escapeHtml(data.entry_point.doc || 'No documentation')}</p>
+                        </div>
+                    `;
+                }
+
+                if (data.steps && data.steps.length > 0) {
+                    html += `<h3>Found ${data.steps.length} pipeline steps:</h3>`;
+                    html += '<ul class="step-list">';
+                    data.steps.slice(0, 25).forEach((step, idx) => {
+                        const stepNum = step.step.split('_')[1];
+                        const desc = step.description ? step.description.split('\n')[0] : 'No description';
+                        html += `
+                            <li class="step-item">
+                                <span class="step-num">${stepNum}</span>
+                                ${escapeHtml(desc)}
+                            </li>
+                        `;
+                    });
+                    if (data.steps.length > 25) {
+                        html += `<li class="step-item">... and ${data.steps.length - 25} more steps</li>`;
+                    }
+                    html += '</ul>';
+                }
+
+                html += `
+                    <div class="llm-answer">
+                        <h3>🤖 Flow Explanation:</h3>
+                        <p>${escapeHtml(data.llm_explanation)}</p>
+                    </div>
+                `;
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ Error: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Allow Enter key to submit
+        document.getElementById('semantic-query').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchSemantic();
+        });
+    </script>
+</body>
+</html>
