@@ -5,14 +5,24 @@ API Layer is responsible for this module.
 """
 
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class QueryRequest(BaseModel):
     """Request to query the codebase."""
 
-    query: str = Field(..., min_length=1, description="User query")
-    namespace: str = Field(..., description="Namespace to search")
+    query: str = Field(
+        ...,
+        min_length=1,
+        max_length=10000,
+        description="User query"
+    )
+    namespace: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="Namespace to search"
+    )
     max_results: int = Field(
         default=10,
         ge=1,
@@ -41,8 +51,51 @@ class QueryRequest(BaseModel):
     )
     provider: Optional[str] = Field(
         None,
+        max_length=50,
         description="LLM provider (openai/anthropic)"
     )
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, v: str) -> str:
+        """Validate query for security."""
+        v = v.strip()
+        if not v:
+            raise ValueError("Query cannot be empty")
+        # Check for null bytes
+        if "\x00" in v:
+            raise ValueError("Invalid characters in query")
+        # Prevent excessively long queries (DoS)
+        if len(v) > 10000:
+            raise ValueError("Query too long (max 10000 characters)")
+        return v
+
+    @field_validator("namespace")
+    @classmethod
+    def validate_namespace(cls, v: str) -> str:
+        """Validate namespace format."""
+        if not v or not v.strip():
+            raise ValueError("Namespace cannot be empty")
+        v = v.strip()
+        if len(v) > 255:
+            raise ValueError("Namespace too long (max 255 characters)")
+        if not all(c.isalnum() or c in ('_', '-', '.') for c in v):
+            raise ValueError("Namespace must contain only alphanumeric, underscore, hyphen, or period characters")
+        if ".." in v or v.startswith(".") or v.endswith("."):
+            raise ValueError("Invalid namespace format")
+        return v
+
+    @field_validator("provider")
+    @classmethod
+    def validate_provider(cls, v: Optional[str]) -> Optional[str]:
+        """Validate provider selection."""
+        if v is None:
+            return v
+        v = v.strip().lower()
+        allowed_providers = {"openai", "anthropic"}
+        if v not in allowed_providers:
+            raise ValueError(f"Invalid provider. Must be one of: {', '.join(allowed_providers)}")
+        return v
 
 
 class ContextItemResponse(BaseModel):

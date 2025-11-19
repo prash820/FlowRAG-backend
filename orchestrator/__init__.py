@@ -29,6 +29,14 @@ from .flow.flow_analyzer import (
     FlowStep,
     StepType,
 )
+from .flow_detector import (
+    FlowDetector,
+    EntryPoint,
+    EntryPointType,
+    FlowNode,
+    FlowNodeType,
+    ExecutionFlow,
+)
 
 __all__ = [
     # Main orchestrator
@@ -55,4 +63,11 @@ __all__ = [
     "FlowAnalysis",
     "FlowStep",
     "StepType",
+    # Flow detection
+    "FlowDetector",
+    "EntryPoint",
+    "EntryPointType",
+    "FlowNode",
+    "FlowNodeType",
+    "ExecutionFlow",
 ]

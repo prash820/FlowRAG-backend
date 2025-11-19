@@ -87,10 +87,45 @@ class Settings(BaseSettings):
     # Rate Limiting
     rate_limit_per_minute: int = Field(default=60, description="Rate limit per minute")
 
+    # Security Settings (New - Backward Compatible)
+    enable_security: bool = Field(
+        default=False,
+        description="Enable API key authentication (disabled by default for backward compatibility)"
+    )
+    enable_rate_limiting: bool = Field(
+        default=False,
+        description="Enable rate limiting (disabled by default for backward compatibility)"
+    )
+    enable_path_validation: bool = Field(
+        default=True,
+        description="Enable path validation for file operations"
+    )
+    api_keys: Optional[str] = Field(
+        default=None,
+        description="Comma-separated list of valid API keys"
+    )
+    allowed_directories: Optional[str] = Field(
+        default=None,
+        description="Comma-separated list of allowed directories for file access"
+    )
+    max_file_size_mb: int = Field(
+        default=10,
+        description="Maximum file size in MB for ingestion"
+    )
+    cors_origins: Optional[str] = Field(
+        default=None,
+        description="Comma-separated list of allowed CORS origins for production"
+    )
+
     @property
     def supported_languages_list(self) -> list[str]:
         """Get list of supported programming languages."""
         return [lang.strip() for lang in self.supported_languages.split(",")]
+
+    @property
+    def max_file_size_bytes(self) -> int:
+        """Get maximum file size in bytes."""
+        return self.max_file_size_mb * 1024 * 1024
 
 
 # Singleton instance

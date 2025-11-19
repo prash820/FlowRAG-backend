@@ -8,6 +8,7 @@ Database Agent is responsible for this module.
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import logging
+import uuid
 
 from qdrant_client import QdrantClient as QdrantClientBase
 from qdrant_client.models import (
@@ -136,8 +137,19 @@ class QdrantClient:
             payload["namespace"] = namespace
             payload["created_at"] = datetime.utcnow().isoformat()
 
+            # Store original ID in payload for retrieval
+            payload["original_id"] = vec["id"]
+
+            # Convert hex ID to UUID string for Qdrant v1.12+
+            # Take first 32 hex chars and format as UUID
+            hex_id = str(vec["id"]).replace("-", "")[:32]
+            # Pad if necessary
+            hex_id = hex_id.ljust(32, '0')
+            # Format as UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+            point_id = f"{hex_id[:8]}-{hex_id[8:12]}-{hex_id[12:16]}-{hex_id[16:20]}-{hex_id[20:32]}"
+
             point = PointStruct(
-                id=vec["id"],
+                id=point_id,
                 vector=vec["vector"],
                 payload=payload,
             )

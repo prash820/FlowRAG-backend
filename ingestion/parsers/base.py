@@ -248,6 +248,12 @@ def get_parser(language: str) -> Optional[BaseParser]:
     elif language in ("typescript", "ts"):
         from .javascript_parser import TypeScriptParser
         return TypeScriptParser()
+    elif language == "go":
+        from .go_parser import GoParser
+        return GoParser()
+    elif language == "java":
+        from .java_parser import JavaParser
+        return JavaParser()
     else:
         return None
 
