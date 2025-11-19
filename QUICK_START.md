@@ -40,10 +40,10 @@ export OPENAI_API_KEY="sk-..."
 source venv/bin/activate
 
 # Interactive mode
-python3 query_with_llm.py
+python3 scripts/query/query_with_llm.py
 
 # Single question mode
-python3 query_with_llm.py "How does user registration work?"
+python3 scripts/query/query_with_llm.py "How does user registration work?"
 ```
 
 ---
@@ -133,34 +133,34 @@ Comprehensive Answer
 
 ### Ask a Question
 ```bash
-python3 query_with_llm.py "Your question"
+python3 scripts/query/query_with_llm.py "Your question"
 ```
 
 ### Interactive Mode
 ```bash
-python3 query_with_llm.py
+python3 scripts/query/query_with_llm.py
 # Then type questions interactively
 ```
 
 ### Test Documentation Search
 ```bash
-python3 test_documentation_search.py
+python3 scripts/test/test_documentation_search.py
 ```
 
 ### Run Full Demo
 ```bash
-python3 demo_complete_hybrid.py
+python3 scripts/demo/demo_complete_hybrid.py
 ```
 
 ### Re-ingest Documentation
 ```bash
 # Edit docs/sock_shop_memory_bank.md
-python3 ingest_documentation.py
+python3 scripts/ingestion/ingest_documentation.py
 ```
 
 ### Re-ingest Code
 ```bash
-python3 ingest_sock_shop.py
+python3 scripts/ingestion/ingest_sock_shop.py
 ```
 
 ---
@@ -221,8 +221,8 @@ docker start flowrag-neo4j
 ### "No results found"
 ```bash
 # Re-ingest data
-python3 ingest_documentation.py
-python3 ingest_sock_shop.py
+python3 scripts/ingestion/ingest_documentation.py
+python3 scripts/ingestion/ingest_sock_shop.py
 ```
 
 ---
