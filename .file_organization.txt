@@ -1,0 +1,63 @@
+# File Organization Plan
+
+## New Structure:
+scripts/
+  ingestion/      - Data ingestion scripts
+  query/          - Query and search scripts  
+  analysis/       - Analysis tools
+  demo/           - Demo scripts
+docs/
+  guides/         - Current documentation (keep main docs)
+  archive/        - Old/historical docs
+
+## Files to Move:
+
+### Ingestion Scripts → scripts/ingestion/
+- ingest_documentation.py
+- ingest_sock_shop.py
+- ingest_flux_pdf.py
+
+### Query Scripts → scripts/query/
+- query_with_llm.py ⭐ (main query system)
+- query_system.py
+- query_flux.py
+- query_workflow_flow.py
+
+### Analysis Scripts → scripts/analysis/
+- analyze_call_graph_gaps.py
+- analyze_flows.py
+- analyze_flux_workflow.py
+- comprehensive_flowrag_test.py
+
+### Demo Scripts → scripts/demo/
+- demo_complete_hybrid.py
+- demo_hybrid_search.py
+- demo_flow.py
+- demo_simple.py
+
+### Test Scripts → scripts/test/
+- test_documentation_search.py
+- test_qdrant_fix.py
+- test_flow_detection_curl.sh
+
+### Old/Archive Docs → docs/archive/
+- DEMO_RESULTS.md
+- DOCUMENT_INGESTION_STATUS.md
+- FLOWRAG_VERIFICATION_RESULTS.md
+- FLOW_DETECTION_DEMO.md
+- FLOW_DETECTION_RESULTS.md
+- GO_JAVA_PARSERS_RESULTS.md
+- HOW_EXTRACTION_WORKS.md
+- JS_PARSER_FIX_RESULTS.md
+- LLM_QUERY_INTERFACE_TEST.md
+- SOCK_SHOP_INGESTION_RESULTS.md
+
+### Keep in Root (Main Docs):
+- README.md ⭐
+- QUICK_START.md ⭐
+- HYBRID_LLM_QUERY_COMPLETE.md ⭐
+- DOCUMENTATION_MEMORY_BANK_COMPLETE.md ⭐
+- COMPREHENSIVE_TEST_RESULTS.md
+- QDRANT_FIX_SUMMARY.md
+- COMPLETE_FLOW_SUMMARY.md
+- FINAL_FLOW_VERIFICATION.md

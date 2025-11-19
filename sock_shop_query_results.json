@@ -1,0 +1,60 @@
+{
+  "summary": {
+    "total": 10,
+    "passed": 2,
+    "failed": 8,
+    "pass_rate": 20.0
+  },
+  "results": [
+    {
+      "id": 1,
+      "question": "What services are in the Sock Shop architecture?",
+      "passed": false
+    },
+    {
+      "id": 2,
+      "question": "What language is the payment service written in?",
+      "passed": false
+    },
+    {
+      "id": 3,
+      "question": "How many functions are in the payment service?",
+      "passed": false
+    },
+    {
+      "id": 4,
+      "question": "What structs/classes exist in the catalogue service?",
+      "passed": true
+    },
+    {
+      "id": 5,
+      "question": "What are the main Go files in the payment service?",
+      "passed": false
+    },
+    {
+      "id": 6,
+      "question": "What functions are in transport.go of the payment service?",
+      "passed": false
+    },
+    {
+      "id": 7,
+      "question": "How many code units were extracted from the user service?",
+      "passed": false
+    },
+    {
+      "id": 8,
+      "question": "What JavaScript files are in the front-end service?",
+      "passed": false
+    },
+    {
+      "id": 9,
+      "question": "Show me functions that have 'New' in their name (constructors)",
+      "passed": false
+    },
+    {
+      "id": 10,
+      "question": "What is the total count of all code units ingested?",
+      "passed": true
+    }
+  ]
+}
