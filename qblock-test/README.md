@@ -30,6 +30,14 @@ QBlock is a microservices-based e-commerce platform consisting of 6 services:
 
 ### Documentation
 - [`QBLOCK_INGESTION_VERIFICATION.md`](QBLOCK_INGESTION_VERIFICATION.md) - Complete verification report with statistics
+- [`SETUP_COMPLETE.md`](SETUP_COMPLETE.md) - Setup completion documentation and capabilities overview
+- [`QUERY_RESULTS.md`](QUERY_RESULTS.md) - Index of example query results with detailed explanations
+
+### Query Results (Example Outputs)
+- [`query_results_shopkeyprovider.txt`](query_results_shopkeyprovider.txt) - Service-level query: "What is the purpose of ShopKeyProvider?"
+- [`query_results_label_creation.txt`](query_results_label_creation.txt) - Service-level query: "How does label creation work?"
+- [`query_results_platform_flow.txt`](query_results_platform_flow.txt) - Platform-level query: "What is the overall flow for QBlock?"
+- [`query_results_services_integration.txt`](query_results_services_integration.txt) - Platform-level query: "How do all the QBlock services work together?"
 
 ## Quick Start
 
