@@ -8,13 +8,23 @@ Uses HuggingFace transformers for local inference.
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 import logging
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
 import json
 
 from config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Optional dependencies for SLM
+try:
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+    TORCH_AVAILABLE = True
+except ImportError:
+    logger.warning("torch/transformers not available - SLM features disabled")
+    TORCH_AVAILABLE = False
+    torch = None
+    AutoTokenizer = None
+    AutoModelForCausalLM = None
 
 
 class IntentClassificationRequest(BaseModel):
@@ -52,6 +62,12 @@ class GemmaClient:
             model_name: HuggingFace model name
             device: Device to run on (cpu/cuda/mps)
         """
+        if not TORCH_AVAILABLE:
+            raise ImportError(
+                "torch and transformers are required for SLM features. "
+                "Install with: pip install torch transformers"
+            )
+
         settings = get_settings()
 
         self.model_name = model_name or settings.slm_model_name

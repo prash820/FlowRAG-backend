@@ -60,6 +60,10 @@ class RelationType(str, Enum):
     USES = "USES"
     DEFINES = "DEFINES"
 
+    # API relationships
+    HANDLES = "HANDLES"
+    CALLS_API = "CALLS_API"  # Cross-service API calls
+
     # Flow relationships
     NEXT_STEP = "NEXT_STEP"
     PARALLEL_WITH = "PARALLEL_WITH"
@@ -174,6 +178,21 @@ class StepNode(BaseNode):
     execution_time: Optional[float] = Field(None, description="Estimated execution time")
 
 
+class APIEndpointNode(BaseNode):
+    """API endpoint node."""
+
+    label: str = NodeLabel.ENDPOINT
+    http_method: str = Field(..., description="HTTP method (GET, POST, etc)")
+    path: str = Field(..., description="URL path pattern")
+    handler_function: str = Field(..., description="Handler function name")
+    handler_file: str = Field(..., description="File containing handler")
+    service: Optional[str] = Field(None, description="Service name")
+    framework: str = Field(..., description="Framework (express, gorilla/mux, spring)")
+    middleware: list[str] = Field(default_factory=list, description="Middleware functions")
+    description: Optional[str] = Field(None, description="Endpoint description")
+    parameters: list[str] = Field(default_factory=list, description="URL/query parameters")
+
+
 # ============================================================================
 # Relationship Models
 # ============================================================================
@@ -230,6 +249,27 @@ class ParallelWithRelationship(BaseRelationship):
     resource_conflict: Optional[str] = Field(None, description="Potential resource conflicts")
 
 
+class HandlesRelationship(BaseRelationship):
+    """API endpoint handles relationship."""
+
+    type: RelationType = RelationType.HANDLES
+    is_direct: bool = Field(default=True, description="Direct handler vs middleware")
+    handler_order: int = Field(default=1, description="Order in handler chain")
+
+
+class CallsAPIRelationship(BaseRelationship):
+    """Cross-service API call relationship."""
+
+    type: RelationType = RelationType.CALLS_API
+    target_service: str = Field(..., description="Target service name/namespace")
+    target_url: str = Field(..., description="API endpoint URL")
+    http_method: str = Field(..., description="HTTP method (GET, POST, etc)")
+    source_function: str = Field(..., description="Function making the call")
+    source_file: str = Field(..., description="Source file path")
+    auth_type: Optional[str] = Field(None, description="Authentication type (jwt, api_key, etc)")
+    parameters: list[str] = Field(default_factory=list, description="API parameters")
+
+
 # ============================================================================
 # Schema Metadata
 # ============================================================================
@@ -242,6 +282,7 @@ NODE_INDEXES = [
     ("Document", "id"),
     ("ExecutionFlow", "id"),
     ("Step", "id"),
+    ("Endpoint", "id"),
 
     # Namespace indexes for multi-tenancy
     ("Module", "namespace"),
@@ -249,11 +290,14 @@ NODE_INDEXES = [
     ("Function", "namespace"),
     ("Document", "namespace"),
     ("ExecutionFlow", "namespace"),
+    ("Endpoint", "namespace"),
 
     # Search indexes
     ("Function", "name"),
     ("Class", "name"),
     ("Module", "file_path"),
+    ("Endpoint", "path"),
+    ("Endpoint", "http_method"),
 ]
 
 NODE_CONSTRAINTS = [
@@ -264,6 +308,7 @@ NODE_CONSTRAINTS = [
     ("Document", "id"),
     ("ExecutionFlow", "id"),
     ("Step", "id"),
+    ("Endpoint", "id"),
 ]
 
 
@@ -277,6 +322,7 @@ def get_node_model(label: NodeLabel) -> type[BaseNode]:
         NodeLabel.DOCUMENT: DocumentNode,
         NodeLabel.EXECUTION_FLOW: ExecutionFlowNode,
         NodeLabel.STEP: StepNode,
+        NodeLabel.ENDPOINT: APIEndpointNode,
     }
     return mapping.get(label, BaseNode)
 
@@ -289,5 +335,7 @@ def get_relationship_model(rel_type: RelationType) -> type[BaseRelationship]:
         RelationType.CONTAINS: ContainsRelationship,
         RelationType.DEPENDS_ON: DependsOnRelationship,
         RelationType.PARALLEL_WITH: ParallelWithRelationship,
+        RelationType.HANDLES: HandlesRelationship,
+        RelationType.CALLS_API: CallsAPIRelationship,
     }
-    return mapping.get(rel_type, BaseRelationship)
+    return mapping.get(rel_type, BaseNode)

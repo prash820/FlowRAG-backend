@@ -105,6 +105,10 @@ class IngestDirectoryRequest(BaseModel):
         description="Patterns to exclude"
     )
     overwrite: bool = Field(default=False, description="Overwrite existing data")
+    generate_documentation: bool = Field(
+        default=False,
+        description="Auto-generate documentation after ingestion and add as metadata"
+    )
 
     @field_validator("directory_path")
     @classmethod
@@ -181,3 +185,63 @@ class DeleteNamespaceResponse(BaseModel):
     namespace: str = Field(..., description="Namespace deleted")
     nodes_deleted: int = Field(default=0, description="Graph nodes deleted")
     vectors_deleted: int = Field(default=0, description="Vectors deleted")
+
+
+class ServiceDefinition(BaseModel):
+    """Definition of a service to ingest."""
+
+    directory_path: str = Field(..., description="Path to service directory")
+    namespace: str = Field(..., description="Namespace for this service")
+    file_patterns: Optional[List[str]] = Field(None, description="File patterns to include")
+    exclude_patterns: Optional[List[str]] = Field(
+        default_factory=lambda: ["node_modules", ".git", "__pycache__", "*.pyc"],
+        description="Patterns to exclude"
+    )
+
+
+class IngestWorkflowRequest(BaseModel):
+    """Request to ingest multiple services as a workflow."""
+
+    services: List[ServiceDefinition] = Field(..., description="List of services to ingest")
+    workflow_name: str = Field(..., description="Name of the workflow")
+    recursive: bool = Field(default=True, description="Recursively ingest subdirectories")
+    generate_documentation: bool = Field(
+        default=True,
+        description="Auto-generate documentation for each service"
+    )
+    detect_inter_service_calls: bool = Field(
+        default=True,
+        description="Detect calls between services in the workflow"
+    )
+    overwrite: bool = Field(default=False, description="Overwrite existing data")
+
+
+class WorkflowIngestResult(BaseModel):
+    """Result for a single service in the workflow."""
+
+    namespace: str
+    success: bool
+    files_processed: int
+    nodes_created: int
+    relationships_created: int
+    vectors_stored: int
+    service_calls_detected: int = 0
+    documentation_generated: bool = False
+    errors: List[str] = Field(default_factory=list)
+
+
+class IngestWorkflowResponse(BaseModel):
+    """Response from workflow ingestion."""
+
+    success: bool
+    message: str
+    workflow_name: str
+    services_processed: int
+    total_files_processed: int
+    total_nodes_created: int
+    total_relationships_created: int
+    total_vectors_stored: int
+    total_service_calls_detected: int
+    processing_time: float
+    service_results: List[WorkflowIngestResult]
+    errors: List[str] = Field(default_factory=list)

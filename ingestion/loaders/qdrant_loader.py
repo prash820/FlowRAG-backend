@@ -24,6 +24,13 @@ class QdrantLoader:
         self.client = get_qdrant_client()
         self.embedding_service = get_embedding_service()
 
+        # Ensure collection exists
+        try:
+            self.client.get_collection_info()
+        except Exception:
+            logger.info("Collection doesn't exist, creating it...")
+            self.client.create_collection()
+
     def load_code_units(
         self,
         code_units: List[CodeUnit],
@@ -87,7 +94,8 @@ class QdrantLoader:
 
         logger.info(f"Loaded {result['upserted_count']} code unit embeddings")
 
-        return result
+        # Return with vectors_stored key for API compatibility
+        return {"vectors_stored": result.get("upserted_count", 0)}
 
     def load_document_chunks(
         self,
@@ -117,8 +125,12 @@ class QdrantLoader:
         # Prepare vectors
         vectors = []
         for chunk, embedding in zip(chunks, embeddings):
+            # Generate a hash ID from the chunk ID for Qdrant UUID format
+            import hashlib
+            chunk_hash = hashlib.md5(chunk.id.encode()).hexdigest()[:16]
+
             vectors.append({
-                "id": chunk.id,
+                "id": chunk_hash,
                 "vector": embedding,
                 "metadata": {
                     "type": "document",
@@ -128,6 +140,7 @@ class QdrantLoader:
                     "section_title": chunk.section_title,
                     "word_count": chunk.word_count,
                     "content": chunk.content,  # Store full content
+                    "original_id": chunk.id,  # Store original ID for reference
                 },
             })
 
@@ -136,7 +149,94 @@ class QdrantLoader:
 
         logger.info(f"Loaded {result['upserted_count']} document chunk embeddings")
 
-        return result
+        # Return with vectors_stored key for API compatibility
+        return {"vectors_stored": result.get("upserted_count", 0)}
+
+    def enrich_with_documentation(
+        self,
+        namespace: str,
+        documentation_metadata: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Enrich existing vectors with documentation metadata.
+
+        This adds service-level documentation context to all vectors in a namespace,
+        improving retrieval relevance by providing high-level context.
+
+        Args:
+            namespace: Namespace to enrich
+            documentation_metadata: Documentation metadata to add
+                - service_name: Name of the service
+                - description: Service description
+                - architecture_summary: Architecture overview
+                - responsibilities: List of service responsibilities
+
+        Returns:
+            Update statistics
+        """
+        try:
+            # Get all vectors for this namespace
+            # Note: This is a conceptual implementation - actual implementation
+            # depends on Qdrant client's scroll/search capabilities
+
+            # For now, we'll store the documentation as a special vector
+            # that can be retrieved during semantic search
+            doc_text_parts = []
+
+            if documentation_metadata.get("service_name"):
+                doc_text_parts.append(f"Service: {documentation_metadata['service_name']}")
+
+            if documentation_metadata.get("description"):
+                doc_text_parts.append(f"Description: {documentation_metadata['description']}")
+
+            if documentation_metadata.get("architecture_summary"):
+                doc_text_parts.append(f"Architecture: {documentation_metadata['architecture_summary']}")
+
+            if documentation_metadata.get("responsibilities"):
+                responsibilities = documentation_metadata["responsibilities"]
+                if isinstance(responsibilities, list):
+                    doc_text_parts.append(f"Responsibilities: {', '.join(responsibilities[:5])}")
+
+            doc_text = "\n".join(doc_text_parts)
+
+            # Generate embedding for documentation
+            doc_embedding = self.embedding_service.generate_embeddings([doc_text])[0]
+
+            # Generate hash ID for the documentation summary vector
+            import hashlib
+            doc_id = f"{namespace}_documentation"
+            doc_hash = hashlib.md5(doc_id.encode()).hexdigest()[:16]
+
+            # Store as special documentation vector
+            doc_vector = {
+                "id": doc_hash,
+                "vector": doc_embedding,
+                "metadata": {
+                    "type": "documentation",
+                    "namespace": namespace,
+                    "service_name": documentation_metadata.get("service_name", ""),
+                    "description": documentation_metadata.get("description", ""),
+                    "architecture_summary": documentation_metadata.get("architecture_summary", ""),
+                    "responsibilities": documentation_metadata.get("responsibilities", []),
+                    "full_text": doc_text,
+                    "is_service_documentation": True,
+                    "original_id": doc_id,  # Store original ID for reference
+                },
+            }
+
+            # Upsert documentation vector
+            result = self.client.upsert_vectors([doc_vector], namespace)
+
+            logger.info(f"Enriched namespace {namespace} with documentation metadata")
+
+            return {
+                "enriched": True,
+                "documentation_vector_stored": result.get("upserted_count", 0) > 0
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to enrich namespace with documentation: {e}")
+            return {"enriched": False, "error": str(e)}
 
     def delete_namespace(self, namespace: str) -> Dict[str, Any]:
         """

@@ -21,6 +21,9 @@ from api.endpoints import (
     ingest_router,
     query_router,
     flow_router,
+    trace_router,
+    workflows_router,
+    documentation_router,
 )
 
 # Setup logging
@@ -59,6 +62,9 @@ app.include_router(health_router)
 app.include_router(ingest_router, prefix=settings.api_prefix)
 app.include_router(query_router, prefix=settings.api_prefix)
 app.include_router(flow_router, prefix=settings.api_prefix)
+app.include_router(trace_router, prefix=settings.api_prefix)
+app.include_router(workflows_router, prefix=settings.api_prefix)
+app.include_router(documentation_router, prefix=settings.api_prefix)
 
 
 @app.on_event("startup")

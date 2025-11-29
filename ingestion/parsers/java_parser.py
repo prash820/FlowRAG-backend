@@ -13,6 +13,7 @@ from pathlib import Path
 
 from databases.neo4j import NodeLabel
 from .base import BaseParser, CodeUnit, ParseResult
+from .api_routes import APIRoute
 
 
 class JavaParser(BaseParser):
@@ -391,3 +392,162 @@ class JavaParser(BaseParser):
     def _get_text(self, node: Node, code: str) -> str:
         """Get text content of a node."""
         return node.text.decode("utf8")
+
+    def extract_api_routes(self, root_node: Node, code: str, file_path: str) -> List[APIRoute]:
+        """Extract API routes from Spring Boot code (@RestController, @RequestMapping, etc.)."""
+        routes = []
+        class_base_path = ""
+        current_class = None
+
+        def visit_node(node: Node):
+            nonlocal class_base_path, current_class
+
+            # Check for @RestController or @Controller class
+            if node.type == "class_declaration":
+                # Check if class has @RestController or @Controller
+                is_controller = False
+                class_path = ""
+
+                for child in node.children:
+                    if child.type == "modifiers":
+                        for modifier in child.children:
+                            if modifier.type == "marker_annotation":
+                                annotation = self._get_text(modifier, code)
+                                if "@RestController" in annotation or "@Controller" in annotation:
+                                    is_controller = True
+
+                            elif modifier.type == "annotation":
+                                annotation_text = self._get_text(modifier, code)
+                                if "@RestController" in annotation_text or "@Controller" in annotation_text:
+                                    is_controller = True
+                                elif "@RequestMapping" in annotation_text:
+                                    # Extract base path for class
+                                    class_path = self._extract_path_from_annotation(modifier, code)
+
+                    elif child.type == "identifier":
+                        current_class = self._get_text(child, code)
+
+                if is_controller:
+                    class_base_path = class_path
+
+            # Check for methods with @RequestMapping, @GetMapping, etc.
+            elif node.type == "method_declaration":
+                route = self._extract_spring_route(node, code, file_path, class_base_path)
+                if route:
+                    routes.append(route)
+
+            # Recursively visit children
+            for child in node.children:
+                visit_node(child)
+
+        visit_node(root_node)
+        return routes
+
+    def _extract_spring_route(self, method_node: Node, code: str, file_path: str, base_path: str) -> Optional[APIRoute]:
+        """Extract route from Spring Boot annotated method."""
+        http_method = None
+        path = ""
+        method_name = None
+
+        # Get method name
+        for child in method_node.children:
+            if child.type == "identifier":
+                method_name = self._get_text(child, code)
+                break
+
+        # Check method annotations
+        for child in method_node.children:
+            if child.type == "modifiers":
+                for modifier in child.children:
+                    if modifier.type in ["marker_annotation", "annotation"]:
+                        annotation_text = self._get_text(modifier, code)
+
+                        # @GetMapping, @PostMapping, etc.
+                        if "@GetMapping" in annotation_text:
+                            http_method = "GET"
+                            path = self._extract_path_from_annotation(modifier, code)
+                        elif "@PostMapping" in annotation_text:
+                            http_method = "POST"
+                            path = self._extract_path_from_annotation(modifier, code)
+                        elif "@PutMapping" in annotation_text:
+                            http_method = "PUT"
+                            path = self._extract_path_from_annotation(modifier, code)
+                        elif "@DeleteMapping" in annotation_text:
+                            http_method = "DELETE"
+                            path = self._extract_path_from_annotation(modifier, code)
+                        elif "@PatchMapping" in annotation_text:
+                            http_method = "PATCH"
+                            path = self._extract_path_from_annotation(modifier, code)
+                        elif "@RequestMapping" in annotation_text:
+                            # Extract both method and path from @RequestMapping
+                            http_method, path = self._extract_request_mapping(modifier, code)
+
+        if http_method and method_name:
+            # Combine base path with method path
+            full_path = base_path + path if base_path else path
+            if not full_path:
+                full_path = "/"
+
+            return APIRoute(
+                method=http_method,
+                path=full_path,
+                handler=method_name,
+                framework='spring',
+                file_path=file_path
+            )
+
+        return None
+
+    def _extract_path_from_annotation(self, annotation_node: Node, code: str) -> str:
+        """Extract path from annotation like @GetMapping(\"/users\")."""
+        # Look for string literal in annotation
+        for child in annotation_node.children:
+            if child.type == "annotation_argument_list":
+                for arg_child in child.children:
+                    if arg_child.type == "string_literal":
+                        path = self._get_text(arg_child, code).strip('"')
+                        return path
+                    elif arg_child.type == "assignment":
+                        # @GetMapping(value = "/users")
+                        for assign_child in arg_child.children:
+                            if assign_child.type == "string_literal":
+                                path = self._get_text(assign_child, code).strip('"')
+                                return path
+
+        return ""
+
+    def _extract_request_mapping(self, annotation_node: Node, code: str) -> tuple:
+        """Extract method and path from @RequestMapping annotation."""
+        http_method = "GET"  # Default
+        path = ""
+
+        for child in annotation_node.children:
+            if child.type == "annotation_argument_list":
+                for arg_child in child.children:
+                    if arg_child.type == "string_literal":
+                        # Simple form: @RequestMapping("/path")
+                        path = self._get_text(arg_child, code).strip('"')
+
+                    elif arg_child.type == "assignment":
+                        # Named parameters: @RequestMapping(value = "/path", method = RequestMethod.GET)
+                        left = None
+                        right = None
+
+                        for assign_child in arg_child.children:
+                            if assign_child.type == "identifier":
+                                left = self._get_text(assign_child, code)
+                            elif assign_child.type == "string_literal":
+                                right = self._get_text(assign_child, code).strip('"')
+                            elif assign_child.type == "field_access":
+                                right = self._get_text(assign_child, code)
+
+                        if left == "value" or left == "path":
+                            path = right
+                        elif left == "method" and right:
+                            # RequestMethod.GET -> GET
+                            if "." in right:
+                                http_method = right.split(".")[-1]
+                            else:
+                                http_method = right
+
+        return http_method, path

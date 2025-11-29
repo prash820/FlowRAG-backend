@@ -114,14 +114,44 @@ class Neo4jLoader:
         """Create CALLS relationships between functions."""
         count = 0
 
-        # Create a name->id mapping
+        # Create a name->id mapping for functions/methods
         name_to_id = {
             unit.name: unit.id
             for unit in result.all_units
             if unit.type in (NodeLabel.FUNCTION, NodeLabel.METHOD)
         }
 
-        # Create relationships based on call information
+        # Create a file_path->id mapping for file-level calls
+        file_to_units = {}
+        for unit in result.all_units:
+            if unit.file_path not in file_to_units:
+                file_to_units[unit.file_path] = []
+            file_to_units[unit.file_path].append(unit)
+
+        # Process ParseResult-level calls (from tree-sitter extraction)
+        for call_info in result.calls:
+            from_file = call_info.get('from', '')
+            to_name = call_info.get('to', '')
+
+            # Find functions in the source file that might make this call
+            if from_file in file_to_units and to_name in name_to_id:
+                # For simplicity, create relationship from file's first function/class
+                # In a more sophisticated version, we'd track which function makes which call
+                source_units = [u for u in file_to_units[from_file]
+                               if u.type in (NodeLabel.FUNCTION, NodeLabel.METHOD, NodeLabel.CLASS)]
+                if source_units:
+                    try:
+                        self.client.create_relationship(
+                            from_id=source_units[0].id,
+                            to_id=name_to_id[to_name],
+                            rel_type=RelationType.CALLS,
+                            properties={"call_count": 1},
+                        )
+                        count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to create call relationship: {e}")
+
+        # Also process unit-level calls (if populated by any parser)
         for unit in result.all_units:
             for called_name in unit.calls:
                 # Find matching function/method
@@ -140,11 +170,39 @@ class Neo4jLoader:
         return count
 
     def _create_import_relationships(self, result: ParseResult) -> int:
-        """Create IMPORTS relationships."""
+        """Create IMPORTS relationships between files/modules."""
         count = 0
 
-        # For now, store imports as node properties
-        # Full import graph would require cross-file analysis
+        # Create a file_path->unit mapping
+        file_to_unit = {}
+        for unit in result.all_units:
+            # Use the first unit (typically a class or main function) to represent the file
+            if unit.file_path not in file_to_unit:
+                file_to_unit[unit.file_path] = unit.id
+
+        # Process ParseResult-level imports
+        for import_info in result.imports:
+            from_file = import_info.get('from', '')
+            to_module = import_info.get('to', '')
+
+            # Create import relationship from source file's first unit
+            if from_file in file_to_unit:
+                # For now, create a simple module node for the imported module
+                # In a more sophisticated version, we'd resolve module paths to actual files
+                try:
+                    # Create or get the target module node
+                    target_id = f"module_{to_module}_{result.namespace}"
+
+                    # Create the import relationship
+                    self.client.create_relationship(
+                        from_id=file_to_unit[from_file],
+                        to_id=target_id,
+                        rel_type=RelationType.IMPORTS,
+                        properties={"module": to_module},
+                    )
+                    count += 1
+                except Exception as e:
+                    logger.debug(f"Failed to create import relationship for {to_module}: {e}")
 
         return count
 

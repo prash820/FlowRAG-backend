@@ -42,7 +42,7 @@ Your task is to explain code clearly and concisely, focusing on:
 Use the provided context to give accurate, specific answers. Always cite sources when referencing specific code."""
 
     @staticmethod
-    def create_prompt(query: str, context: AssembledContext) -> Dict[str, str]:
+    def create_prompt(query: str, context: AssembledContext, **kwargs: Any) -> Dict[str, str]:
         """Create prompt for code explanation."""
         context_str = PromptTemplate.format_context_items(context.items)
 
@@ -76,7 +76,7 @@ Provide concise information about the function including:
 Always cite the source file and line number."""
 
     @staticmethod
-    def create_prompt(query: str, context: AssembledContext) -> Dict[str, str]:
+    def create_prompt(query: str, context: AssembledContext, **kwargs: Any) -> Dict[str, str]:
         """Create prompt for function finding."""
         context_str = PromptTemplate.format_context_items(context.items)
 
@@ -107,7 +107,7 @@ When showing call chains:
 - Note any async operations or potential bottlenecks"""
 
     @staticmethod
-    def create_prompt(query: str, context: AssembledContext) -> Dict[str, str]:
+    def create_prompt(query: str, context: AssembledContext, **kwargs: Any) -> Dict[str, str]:
         """Create prompt for call tracing."""
         context_str = PromptTemplate.format_context_items(context.items)
 
@@ -193,7 +193,7 @@ When analyzing dependencies:
 - Note any architectural concerns"""
 
     @staticmethod
-    def create_prompt(query: str, context: AssembledContext) -> Dict[str, str]:
+    def create_prompt(query: str, context: AssembledContext, **kwargs: Any) -> Dict[str, str]:
         """Create prompt for dependency analysis."""
         context_str = PromptTemplate.format_context_items(context.items)
 
@@ -224,7 +224,7 @@ Answer questions clearly and concisely:
 - Provide examples when helpful"""
 
     @staticmethod
-    def create_prompt(query: str, context: AssembledContext) -> Dict[str, str]:
+    def create_prompt(query: str, context: AssembledContext, **kwargs: Any) -> Dict[str, str]:
         """Create prompt for general questions."""
         context_str = PromptTemplate.format_context_items(context.items)
 

@@ -227,30 +227,48 @@
 
 ---
 
-### **Day 6: Flow Optimization Engine**
+### **Day 6: Specialized Workflow Architecture**
 
-**Morning (9am-12pm): Parallel Detection**
-- [ ] **Task 6.1:** Implement parallel detection algorithm in `flow_analyzer.py`
-  - Build dependency graph from REQUIRES relationships
-  - Topological sort
-  - Group nodes at same depth level
-- [ ] **Task 6.2:** Test with sample workflows
+**Morning (9am-12pm): Workflow Router (Facade Pattern)**
+- [ ] **Task 6.1:** Create `orchestrator/workflows/` directory structure
+- [ ] **Task 6.2:** Implement `WorkflowRouter` in `orchestrator/workflows/router.py`
+  - WorkflowType enum (DEBUG, OPTIMIZE, GENERAL)
+  - Route based on intent classification
+  - Non-intrusive facade over existing orchestrator
+- [ ] **Task 6.3:** Add new intent types to `QueryIntent` enum
+  - `ERROR_TRACE`, `BUG_HUNT` → DEBUG workflow
+  - `FIND_BOTTLENECK`, `ANALYZE_PERFORMANCE` → OPTIMIZE workflow
+  - Keep existing intents for GENERAL workflow
 
-**Afternoon (1pm-4pm): Critical Path**
-- [ ] **Task 6.3:** Implement critical path algorithm
-  - Forward pass (earliest start times)
-  - Backward pass (latest finish times)
-  - Calculate slack
-- [ ] **Task 6.4:** Identify critical path nodes
+**Afternoon (1pm-4pm): Debug Workflow (Issue Hunting)**
+- [ ] **Task 6.4:** Create `orchestrator/workflows/debug_workflow.py`
+  - Multi-stage drill-down: broad → narrow → deep
+  - Stage 1: Locate issue area (broad semantic search)
+  - Stage 2: Trace dependencies (graph traversal)
+  - Stage 3: Find error patterns (similar code)
+  - Stage 4: Historical analysis (previous fixes)
+- [ ] **Task 6.5:** Add `/api/v1/query/debug` endpoint
+  - DebugRequest schema (query, error_context, stack_trace)
+  - DebugResponse schema (stages, suggestions, similar_fixes)
 
-**Evening (4pm-6pm): Bottleneck Detection + Recommendations**
-- [ ] **Task 6.5:** Bottleneck detection
-  - High fan-in/fan-out nodes
-  - Resource constraints
-- [ ] **Task 6.6:** Generate optimization recommendations
-  - LLM-enhanced explanations
+**Evening (4pm-6pm): Optimization Workflow Foundation**
+- [ ] **Task 6.6:** Create `orchestrator/workflows/optimization_workflow.py`
+  - Parallel detection algorithm (topological sort, depth grouping)
+  - Critical path calculation (forward/backward pass)
+  - Bottleneck detection (fan-in/fan-out analysis)
+- [ ] **Task 6.7:** Add `/api/v1/query/optimize` endpoint
+  - OptimizeRequest schema (target_function, analysis_depth)
+  - OptimizationResponse schema (bottlenecks, parallel_ops, refactoring_suggestions)
 
-**Outcome Day 6:** ✅ "What can run in parallel?" queries working!
+**Outcome Day 6:** ✅ Specialized workflow architecture + 3 workflow types (DEBUG, OPTIMIZE, GENERAL)!
+
+**Architecture Diagram:**
+```
+Query Facade → Workflow Router
+                    ├─→ Debug Workflow (multi-stage issue hunting)
+                    ├─→ Optimization Workflow (performance analysis)
+                    └─→ General Workflow (existing query system)
+```
 
 ---
 
@@ -900,3 +918,361 @@ git push origin ufis-mvp
 **FIRST $10K MRR: Month 3**
 
 **LET'S BUILD UFIS! 💪**
+
+---
+
+## APPENDIX: Specialized Workflow Architecture
+
+### **Philosophy: Generic vs Specific Searches**
+
+**Problem:** One-size-fits-all queries don't work optimally for different use cases:
+- **Debugging** needs multi-stage drill-down (broad → narrow → deep)
+- **Optimization** needs flow analysis + bottleneck detection
+- **General questions** need fast, broad answers
+
+**Solution:** Facade pattern with specialized workflows
+
+### **Architecture Overview**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    API Layer                             │
+│  /api/v1/query (general) │ /debug │ /optimize           │
+└───────────────────┬─────────────────────────────────────┘
+                    │
+┌───────────────────▼──────────────────────────────────────┐
+│              Workflow Router (Facade)                     │
+│  - Analyzes intent from query                            │
+│  - Routes to appropriate workflow                        │
+│  - Non-intrusive: wraps existing orchestrator            │
+└───────────┬──────────────┬──────────────┬────────────────┘
+            │              │              │
+    ┌───────▼──────┐ ┌────▼────┐  ┌──────▼──────┐
+    │ Debug        │ │Optimize │  │  General    │
+    │ Workflow     │ │Workflow │  │  Workflow   │
+    │(Multi-stage) │ │(Perf)   │  │  (Existing) │
+    └──────────────┘ └─────────┘  └─────────────┘
+```
+
+### **Workflow Type Mapping**
+
+| User Intent | Workflow Type | Processing Strategy |
+|------------|---------------|---------------------|
+| "Why is X failing?" | **DEBUG** | Multi-stage drill-down |
+| "Find bug in authentication" | **DEBUG** | Error pattern matching |
+| "How can I optimize X?" | **OPTIMIZE** | Flow analysis + bottlenecks |
+| "What can run in parallel?" | **OPTIMIZE** | Parallelization detection |
+| "How does X work?" | **GENERAL** | Semantic search (fast) |
+| "Explain this code" | **GENERAL** | Vector similarity (existing) |
+
+### **Debug Workflow (Multi-Stage Issue Hunting)**
+
+**Process:**
+```
+Stage 1: Broad Search
+  ├─ Query: "authentication error"
+  ├─ Vector search: Find all auth-related code
+  └─ Result: 50 potential files
+
+Stage 2: Narrow Down
+  ├─ Graph traversal: Trace call chains
+  ├─ Filter: Only files called during auth flow
+  └─ Result: 8 relevant functions
+
+Stage 3: Deep Analysis
+  ├─ Pattern matching: Find similar error patterns
+  ├─ Historical: Check git history for bug fixes
+  └─ Result: 2 likely culprits
+
+Stage 4: Solution Synthesis
+  ├─ LLM: Generate diagnostic report
+  ├─ Suggestions: Concrete fixes with code examples
+  └─ Output: Actionable debugging steps
+```
+
+**API Contract:**
+```python
+# Request
+POST /api/v1/query/debug
+{
+  "query": "Login fails with 'Invalid token' error",
+  "error_context": {
+    "error_message": "Invalid token",
+    "stack_trace": "...",
+    "affected_endpoint": "/api/auth/login"
+  },
+  "namespace": "my-app"
+}
+
+# Response
+{
+  "success": true,
+  "stages": [
+    {
+      "stage": "locate",
+      "found_files": 50,
+      "top_candidates": [...]
+    },
+    {
+      "stage": "narrow",
+      "call_chains": [...],
+      "relevant_functions": 8
+    },
+    {
+      "stage": "diagnose",
+      "likely_causes": [
+        {
+          "file": "auth.ts",
+          "function": "validateToken",
+          "reason": "Token expiry check missing",
+          "confidence": 0.85
+        }
+      ]
+    }
+  ],
+  "recommendations": [
+    {
+      "action": "Add token expiry validation",
+      "code_example": "...",
+      "file": "auth.ts:45"
+    }
+  ],
+  "similar_fixes": [
+    {
+      "commit": "abc123",
+      "message": "Fix token validation",
+      "diff": "..."
+    }
+  ]
+}
+```
+
+### **Optimization Workflow (Performance Analysis)**
+
+**Process:**
+```
+Stage 1: Trace Execution Flow
+  ├─ Entry point: "processPayment"
+  ├─ Graph traversal: Follow all CALLS relationships
+  └─ Result: Complete call graph (25 nodes)
+
+Stage 2: Detect Bottlenecks
+  ├─ Analyze: Fan-in/fan-out ratios
+  ├─ Identify: Sequential operations
+  └─ Result: 3 bottlenecks found
+
+Stage 3: Find Parallelization Opportunities
+  ├─ Topological sort: Build dependency graph
+  ├─ Group: Operations at same depth
+  └─ Result: 8 operations can run in parallel
+
+Stage 4: Generate Recommendations
+  ├─ LLM: Explain bottlenecks in context
+  ├─ Suggest: Concrete refactoring steps
+  └─ Output: Optimization plan with code
+```
+
+**API Contract:**
+```python
+# Request
+POST /api/v1/query/optimize
+{
+  "query": "How can I optimize the payment processing flow?",
+  "target_function": "processPayment",
+  "namespace": "my-app",
+  "analysis_depth": 5
+}
+
+# Response
+{
+  "success": true,
+  "flow_map": {
+    "total_nodes": 25,
+    "max_depth": 5,
+    "execution_paths": [...]
+  },
+  "bottlenecks": [
+    {
+      "node": "validateCard",
+      "type": "sequential_dependency",
+      "impact": "blocks 8 downstream operations",
+      "suggestion": "Move validation to async job"
+    }
+  ],
+  "parallel_opportunities": [
+    {
+      "group_id": 1,
+      "operations": [
+        "fetchUserData",
+        "fetchProductInfo",
+        "checkInventory"
+      ],
+      "current": "sequential (300ms total)",
+      "optimized": "parallel (100ms max)",
+      "speedup": "3x faster"
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "refactoring",
+      "description": "Parallelize independent data fetches",
+      "code_example": "await Promise.all([...])",
+      "estimated_improvement": "66% faster"
+    }
+  ]
+}
+```
+
+### **General Workflow (Fast Answers - Existing)**
+
+**When to Use:**
+- Quick questions: "How does X work?"
+- Exploration: "What does this function do?"
+- Documentation: "Where is Y documented?"
+
+**Process:**
+- Single-pass semantic search
+- Fast vector similarity
+- Immediate LLM response
+- **No changes needed** (already working!)
+
+### **Implementation Guidelines**
+
+#### **Non-Intrusive Design Principles**
+
+1. **Backward Compatibility**
+   - Existing `/api/v1/query` endpoint UNCHANGED
+   - All current users continue to work
+   - New endpoints are additive only
+
+2. **Reuse Existing Infrastructure**
+   ```python
+   # DON'T duplicate code
+   class DebugWorkflow:
+       def __init__(self):
+           self.orchestrator = get_orchestrator()  # Reuse!
+           self.retriever = get_hybrid_retriever()  # Reuse!
+
+   # DO add workflow-specific logic
+   def execute(self, request):
+       # Stage 1: Use existing retriever
+       broad_results = self.retriever.search(...)
+
+       # Stage 2: Add workflow-specific narrowing
+       narrow_results = self._drill_down(broad_results)
+
+       # Stage 3: Use existing context assembly
+       context = self.orchestrator._assemble_context(...)
+   ```
+
+3. **Independent Evolution**
+   - Each workflow can be optimized separately
+   - Debug workflow changes don't affect Optimize
+   - Easy to add new workflows (SECURITY_AUDIT, CODE_REVIEW, etc.)
+
+4. **Minimal Changes to Core**
+   ```python
+   # ONLY CHANGE: Add new intent types
+   class QueryIntent(str, Enum):
+       # Existing (keep all)
+       GENERAL_QUESTION = "general_question"
+       FIND_FUNCTION = "find_function"
+       # ... all existing intents ...
+
+       # NEW: Debug workflow intents
+       ERROR_TRACE = "error_trace"
+       BUG_HUNT = "bug_hunt"
+
+       # NEW: Optimize workflow intents
+       FIND_BOTTLENECK = "find_bottleneck"
+       ANALYZE_PERFORMANCE = "analyze_performance"
+   ```
+
+### **Frontend Integration**
+
+**UI Enhancement:**
+```typescript
+// Workflow selector component
+<QueryInterface>
+  <WorkflowSelector>
+    <Option value="general">
+      Quick Answer (Fast)
+    </Option>
+    <Option value="debug">
+      Debug Issue (Multi-stage)
+    </Option>
+    <Option value="optimize">
+      Optimize Flow (Analysis)
+    </Option>
+  </WorkflowSelector>
+
+  <QueryInput />
+
+  {/* Conditional fields based on workflow */}
+  {workflow === 'debug' && (
+    <ErrorContextInput
+      stackTrace={...}
+      errorMessage={...}
+    />
+  )}
+
+  {workflow === 'optimize' && (
+    <TargetFunctionSelect />
+  )}
+</QueryInterface>
+```
+
+**Result Display:**
+```typescript
+// Different visualizations per workflow
+{workflowType === 'debug' && (
+  <DebugResultsView
+    stages={result.stages}
+    recommendations={result.recommendations}
+  />
+)}
+
+{workflowType === 'optimize' && (
+  <OptimizationView
+    flowGraph={result.flow_map}
+    bottlenecks={result.bottlenecks}
+    parallelOps={result.parallel_opportunities}
+  />
+)}
+
+{workflowType === 'general' && (
+  <GeneralAnswerView answer={result.answer} />
+)}
+```
+
+### **Success Metrics by Workflow**
+
+| Workflow | Success Metric | Target |
+|----------|---------------|--------|
+| **Debug** | Issue resolution time | <10 min (vs 2 hrs manual) |
+| **Optimize** | Speedup identified | >2x improvement suggestions |
+| **General** | Answer relevance | >0.8 user satisfaction |
+
+### **Future Workflow Extensions**
+
+**Phase 2 (Post-MVP):**
+- `SECURITY_AUDIT` workflow
+  - Find vulnerabilities
+  - Check for common patterns (SQL injection, XSS)
+  - Suggest security fixes
+
+- `CODE_REVIEW` workflow
+  - Quality analysis
+  - Best practice compliance
+  - Refactoring suggestions
+
+- `DEPENDENCY_AUDIT` workflow
+  - Trace dependency chains
+  - Find unused imports
+  - Detect circular dependencies
+
+**Architecture allows easy addition without touching existing code!**
+
+---
+
+**LET'S BUILD UFIS WITH SMART WORKFLOWS! 💪**

@@ -47,6 +47,45 @@ class CodeUnit(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
 
+class DocumentUnit(BaseModel):
+    """Represents a parsed documentation unit (page, section, step)."""
+
+    id: str = Field(..., description="Unique identifier")
+    title: str = Field(..., description="Title or heading")
+    type: str = Field(..., description="Type: page, section, step, paragraph")
+    file_path: str = Field(..., description="Source file path")
+
+    # Content
+    content: str = Field(..., description="Text content")
+    raw_content: Optional[str] = Field(None, description="Raw extracted text")
+
+    # Location
+    page_number: Optional[int] = Field(None, description="Page number (for PDFs)")
+    section_number: Optional[str] = Field(None, description="Section number")
+    line_start: Optional[int] = Field(None, description="Starting line (for markdown)")
+    line_end: Optional[int] = Field(None, description="Ending line")
+
+    # Metadata
+    is_procedure: bool = Field(default=False, description="Is this a procedure/step?")
+    is_numbered_list: bool = Field(default=False, description="Is this a numbered list?")
+    step_number: Optional[int] = Field(None, description="Step number if procedure")
+
+    # Relationships
+    parent_id: Optional[str] = Field(None, description="Parent section ID")
+    next_id: Optional[str] = Field(None, description="Next step/section ID")
+    prev_id: Optional[str] = Field(None, description="Previous step/section ID")
+
+    # Code references (will be filled by semantic linking)
+    related_code_ids: List[str] = Field(default_factory=list, description="Related code unit IDs")
+
+    # LLM-enhanced metadata (optional)
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="LLM-enhanced metadata")
+
+    # Context
+    namespace: str = Field(..., description="Namespace for multi-tenancy")
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
+
 class ParseResult(BaseModel):
     """Result of parsing a source file."""
 
@@ -68,6 +107,12 @@ class ParseResult(BaseModel):
     calls: List[Dict[str, str]] = Field(
         default_factory=list,
         description="Function call relationships"
+    )
+
+    # API Routes
+    api_routes: List[Any] = Field(
+        default_factory=list,
+        description="API routes/endpoints detected"
     )
 
     # Metrics
@@ -248,6 +293,9 @@ def get_parser(language: str) -> Optional[BaseParser]:
     elif language in ("typescript", "ts"):
         from .javascript_parser import TypeScriptParser
         return TypeScriptParser()
+    elif language == "dart":
+        from .dart_parser import DartParser
+        return DartParser()
     elif language == "go":
         from .go_parser import GoParser
         return GoParser()
@@ -274,6 +322,7 @@ def detect_language(file_path: str) -> Optional[str]:
         ".jsx": "javascript",
         ".ts": "typescript",
         ".tsx": "typescript",
+        ".dart": "dart",
         ".go": "go",
         ".rs": "rust",
         ".java": "java",

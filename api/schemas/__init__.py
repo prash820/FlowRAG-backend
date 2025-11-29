@@ -8,6 +8,10 @@ from .ingest import (
     DeleteNamespaceRequest,
     DeleteNamespaceResponse,
     FileType,
+    IngestWorkflowRequest,
+    IngestWorkflowResponse,
+    WorkflowIngestResult,
+    ServiceDefinition,
 )
 from .query import (
     QueryRequest,
@@ -22,6 +26,12 @@ from .flow import (
     ParallelizationOpportunity,
     ParallelizationResponse,
 )
+from .trace import (
+    TraceRequest,
+    TraceResponse,
+    CodeNode,
+    CodeRelationship,
+)
 
 __all__ = [
     # Common
@@ -35,6 +45,10 @@ __all__ = [
     "DeleteNamespaceRequest",
     "DeleteNamespaceResponse",
     "FileType",
+    "IngestWorkflowRequest",
+    "IngestWorkflowResponse",
+    "WorkflowIngestResult",
+    "ServiceDefinition",
     # Query
     "QueryRequest",
     "QueryResponse",
@@ -46,4 +60,9 @@ __all__ = [
     "FlowStepResponse",
     "ParallelizationOpportunity",
     "ParallelizationResponse",
+    # Trace
+    "TraceRequest",
+    "TraceResponse",
+    "CodeNode",
+    "CodeRelationship",
 ]

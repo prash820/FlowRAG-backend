@@ -13,6 +13,7 @@ from pathlib import Path
 
 from databases.neo4j import NodeLabel
 from .base import BaseParser, CodeUnit, ParseResult
+from .api_routes import APIRoute
 
 
 class GoParser(BaseParser):
@@ -405,3 +406,184 @@ class GoParser(BaseParser):
     def _get_text(self, node: Node, code: str) -> str:
         """Get text content of a node."""
         return node.text.decode("utf8")
+
+    def extract_api_routes(self, root_node: Node, code: str, file_path: str) -> List[APIRoute]:
+        """Extract API routes from Go code (gorilla/mux, http.HandleFunc)."""
+        routes = []
+
+        def visit_node(node: Node):
+            # Pattern: r.Methods("GET").Path("/login").Handler(...)
+            if node.type == "call_expression":
+                # Check for gorilla/mux router chains
+                route = self._try_extract_mux_route(node, code, file_path)
+                if route:
+                    routes.append(route)
+
+                # Check for http.HandleFunc("/path", handler)
+                route = self._try_extract_handle_func(node, code, file_path)
+                if route:
+                    routes.append(route)
+
+            # Recursively visit children
+            for child in node.children:
+                visit_node(child)
+
+        visit_node(root_node)
+        return routes
+
+    def _try_extract_mux_route(self, node: Node, code: str, file_path: str) -> Optional[APIRoute]:
+        """Try to extract gorilla/mux route from call expression."""
+        # Get the full call text
+        call_text = self._get_text(node, code)
+
+        # Check if it contains route patterns (simpler fallback approach)
+        if 'Methods(' in call_text and ('.Path(' in call_text or '.PathPrefix(' in call_text) and '.Handler(' in call_text:
+            import re
+
+            # Extract HTTP method
+            http_method = None
+            if 'Methods("GET")' in call_text:
+                http_method = "GET"
+            elif 'Methods("POST")' in call_text:
+                http_method = "POST"
+            elif 'Methods("PUT")' in call_text:
+                http_method = "PUT"
+            elif 'Methods("DELETE")' in call_text:
+                http_method = "DELETE"
+            elif 'Methods("PATCH")' in call_text:
+                http_method = "PATCH"
+
+            # Extract path
+            path = None
+            path_match = re.search(r'\.Path\("([^"]+)"\)', call_text)
+            if path_match:
+                path = path_match.group(1)
+            else:
+                path_match = re.search(r'\.PathPrefix\("([^"]+)"\)', call_text)
+                if path_match:
+                    path = path_match.group(1)
+
+            # Extract handler (look for e.XxxEndpoint pattern)
+            handler = None
+            handler_match = re.search(r'e\.(\w+Endpoint)', call_text)
+            if handler_match:
+                handler = handler_match.group(1)
+            else:
+                # Try to find handler in NewServer call
+                handler_match = re.search(r'NewServer\(\s*(\w+)', call_text)
+                if handler_match:
+                    handler = handler_match.group(1)
+
+            if http_method and path and handler:
+                return APIRoute(
+                    method=http_method,
+                    path=path,
+                    handler=handler,
+                    framework='gorilla/mux',
+                    file_path=file_path
+                )
+
+        return None
+
+    def _try_extract_handle_func(self, node: Node, code: str, file_path: str) -> Optional[APIRoute]:
+        """Try to extract http.HandleFunc route."""
+        # Pattern: http.HandleFunc("/path", handlerFunc)
+        callee = self._get_callee_name(node, code)
+
+        if callee not in ['http.HandleFunc', 'HandleFunc']:
+            return None
+
+        # Get arguments
+        args = []
+        for child in node.children:
+            if child.type == "argument_list":
+                for arg_child in child.children:
+                    if arg_child.type in ["interpreted_string_literal", "identifier", "call_expression"]:
+                        arg_text = self._get_text(arg_child, code)
+                        args.append(arg_text)
+
+        if len(args) >= 2:
+            path = args[0].strip('"')
+            handler = args[1]
+
+            return APIRoute(
+                method='GET',  # HandleFunc defaults to GET, or checks method in handler
+                path=path,
+                handler=handler,
+                framework='net/http',
+                file_path=file_path
+            )
+
+        return None
+
+    def _build_call_chain(self, node: Node, code: str) -> List[dict]:
+        """Build chain of method calls like r.Methods("GET").Path("/login")."""
+        chain = []
+        current = node
+
+        while current and current.type == "call_expression":
+            # Get the method name (e.g., "Methods", "Path", "Handler")
+            method_name = None
+            for child in current.children:
+                if child.type == "selector_expression":
+                    # Get the rightmost identifier (the method name)
+                    for subchild in child.children:
+                        if subchild.type == "field_identifier":
+                            method_name = self._get_text(subchild, code)
+
+            # Get arguments
+            args = []
+            for child in current.children:
+                if child.type == "argument_list":
+                    for arg_child in child.children:
+                        if arg_child.type in ["interpreted_string_literal", "raw_string_literal"]:
+                            args.append(self._get_text(arg_child, code))
+
+            if method_name:
+                chain.insert(0, {
+                    'method': method_name,
+                    'args': args
+                })
+
+            # Move to the object being called (left side of the chain)
+            found_parent = False
+            for child in current.children:
+                if child.type == "selector_expression":
+                    for subchild in child.children:
+                        if subchild.type == "call_expression":
+                            current = subchild
+                            found_parent = True
+                            break
+                    if found_parent:
+                        break
+
+            if not found_parent:
+                break
+
+        return chain
+
+    def _extract_handler_name(self, arg_text: str) -> str:
+        """Extract handler function name from complex expressions."""
+        # httptransport.NewServer(e.LoginEndpoint, ...) -> LoginEndpoint
+        # myHandler -> myHandler
+
+        # Look for common patterns
+        if 'NewServer(' in arg_text:
+            # Extract first argument to NewServer
+            start = arg_text.find('(')
+            if start != -1:
+                end = arg_text.find(',', start)
+                if end == -1:
+                    end = arg_text.find(')', start)
+                if end != -1:
+                    handler = arg_text[start+1:end].strip()
+                    # Remove package prefix if present (e.g., e.LoginEndpoint -> LoginEndpoint)
+                    if '.' in handler:
+                        handler = handler.split('.')[-1]
+                    return handler
+
+        # Simple handler name
+        if '.' in arg_text:
+            return arg_text.split('.')[-1]
+
+        return arg_text

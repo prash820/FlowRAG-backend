@@ -1,0 +1,16 @@
+{
+  "service_mappings": {
+    "shopdataprovider": "qblock-shop-data",
+    "shop_data_provider": "qblock-shop-data",
+    "labelcreation": "qblock-label-service",
+    "label_creation": "qblock-label-service",
+    "shopkeyprovider": "qblock-auth-service",
+    "shop_key_provider": "qblock-auth-service",
+    "gatekeeper": "qblock-auth-service",
+    "transactiondata": "qblock-transaction-data",
+    "transaction_data": "qblock-transaction-data",
+    "metrics": "qblock-metrics",
+    "shipstation": "qblock-label-service"
+  },
+  "description": "QBlock microservices URL-to-namespace mappings"
+}
