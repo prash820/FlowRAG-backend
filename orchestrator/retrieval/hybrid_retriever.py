@@ -35,6 +35,7 @@ class HybridRetriever:
     Hybrid retrieval combining:
     - Vector search (Qdrant) for semantic similarity
     - Graph traversal (Neo4j) for structural relationships
+    - Cross-service retrieval via CALLS_API relationships
     """
 
     def __init__(self):
@@ -42,6 +43,116 @@ class HybridRetriever:
         self.neo4j_client = get_neo4j_client()
         self.qdrant_client = get_qdrant_client()
         self.embedding_service = get_embedding_service()
+
+    def get_related_namespaces(self, namespace: str) -> List[str]:
+        """
+        Get namespaces that are related via CALLS_API relationships.
+
+        Args:
+            namespace: Starting namespace
+
+        Returns:
+            List of related namespace names including the original
+        """
+        query = """
+        MATCH (source)-[r:CALLS_API]->(target)
+        WHERE source.namespace = $namespace OR target.namespace = $namespace
+        WITH DISTINCT source.namespace as src_ns, target.namespace as tgt_ns
+        RETURN collect(DISTINCT src_ns) + collect(DISTINCT tgt_ns) as namespaces
+        """
+
+        results = self.neo4j_client.execute_query(query, {"namespace": namespace})
+
+        if results and results[0].get("namespaces"):
+            # Flatten and deduplicate, ensure original namespace is included
+            related = set(results[0]["namespaces"])
+            related.add(namespace)
+            related.discard(None)
+            return list(related)
+
+        return [namespace]
+
+    def retrieve_cross_service(
+        self,
+        query: str,
+        namespace: str,
+        top_k: int = 10,
+    ) -> RetrievalResult:
+        """
+        Retrieve from multiple related namespaces via CALLS_API relationships.
+
+        This enables cross-service queries like "How does OMS get orders from Shopify?"
+        by searching in both qblock-mobile AND qblock-shop-data namespaces.
+
+        Args:
+            query: User query
+            namespace: Starting namespace
+            top_k: Number of results per namespace
+
+        Returns:
+            Combined RetrievalResult from all related namespaces
+        """
+        import time
+        start_time = time.time()
+
+        # Get all related namespaces
+        namespaces = self.get_related_namespaces(namespace)
+        logger.info(f"Cross-service retrieval across namespaces: {namespaces}")
+
+        all_vector_results = []
+        all_graph_results = []
+
+        # Generate query embedding once
+        query_embedding = self.embedding_service.generate_embedding(query)
+
+        # Search each namespace
+        per_namespace_limit = max(top_k // len(namespaces), 5)
+
+        for ns in namespaces:
+            # Vector search in this namespace
+            vector_results = self.qdrant_client.search(
+                query_vector=query_embedding,
+                namespace=ns,
+                top_k=per_namespace_limit,
+            )
+            all_vector_results.extend(vector_results)
+
+        # Get cross-service API call context
+        cross_service_query = """
+        MATCH (source)-[r:CALLS_API]->(target)
+        WHERE source.namespace = $namespace OR target.namespace = $namespace
+        RETURN source.namespace as from_service,
+               source.name as from_class,
+               source.file_path as from_file,
+               r.target_url as api_endpoint,
+               r.http_method as method,
+               r.source_function as calling_function,
+               target.namespace as to_service,
+               target.name as to_class
+        ORDER BY from_service
+        """
+
+        cross_service_results = self.neo4j_client.execute_query(
+            cross_service_query,
+            {"namespace": namespace}
+        )
+
+        if cross_service_results:
+            all_graph_results.extend(cross_service_results)
+
+        # Sort vector results by relevance score and limit
+        all_vector_results.sort(key=lambda x: x.get("score", 0), reverse=True)
+        all_vector_results = all_vector_results[:top_k]
+
+        result = RetrievalResult(
+            vector_results=all_vector_results,
+            graph_results=all_graph_results,
+        )
+
+        result.retrieval_time = time.time() - start_time
+        result.total_results = len(result.vector_results) + len(result.graph_results)
+
+        return result
 
     def retrieve(
         self,

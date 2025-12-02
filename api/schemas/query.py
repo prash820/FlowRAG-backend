@@ -39,6 +39,10 @@ class QueryRequest(BaseModel):
         default=False,
         description="Include flow analysis if applicable"
     )
+    include_cross_service: bool = Field(
+        default=False,
+        description="Include related services via CALLS_API relationships for cross-service queries"
+    )
     stream: bool = Field(
         default=False,
         description="Stream response in real-time"

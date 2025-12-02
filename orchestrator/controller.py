@@ -41,6 +41,10 @@ class OrchestrationRequest(BaseModel):
         default=False,
         description="Include flow analysis if applicable"
     )
+    include_cross_service: bool = Field(
+        default=False,
+        description="Include related services via CALLS_API relationships"
+    )
 
 
 class OrchestrationResult(BaseModel):
@@ -121,12 +125,25 @@ class Orchestrator:
         intent_result = self._classify_intent(request.query)
 
         # Step 2: Retrieve relevant information
-        retrieval_result = self._retrieve(
-            query=request.query,
-            namespace=request.namespace,
-            intent_result=intent_result,
-            top_k=request.max_results,
-        )
+        if request.include_cross_service:
+            # Cross-service retrieval for queries spanning multiple services
+            # TODO: Add feature to restrict cross-service search to only the namespaces
+            # directly involved in the query (e.g., if query mentions "OMS" and "Shopify",
+            # only search qblock-mobile and qblock-shop-data, not all connected namespaces).
+            # Currently searches all namespaces connected via CALLS_API relationships.
+            # See scripts/query/query_system.py for existing cross-service pattern.
+            retrieval_result = self.retriever.retrieve_cross_service(
+                query=request.query,
+                namespace=request.namespace,
+                top_k=request.max_results,
+            )
+        else:
+            retrieval_result = self._retrieve(
+                query=request.query,
+                namespace=request.namespace,
+                intent_result=intent_result,
+                top_k=request.max_results,
+            )
 
         # Step 3: Assemble context
         context = self._assemble_context(

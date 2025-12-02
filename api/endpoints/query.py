@@ -54,6 +54,7 @@ async def query_codebase(request: QueryRequest) -> QueryResponse:
             max_results=request.max_results,
             max_context_tokens=request.max_context_tokens,
             include_flow_analysis=request.include_flow_analysis,
+            include_cross_service=request.include_cross_service,
         )
 
         orchestration_result = orchestrator.orchestrate(orchestration_request)
@@ -144,6 +145,7 @@ async def query_codebase_stream(request: QueryRequest):
                 max_results=request.max_results,
                 max_context_tokens=request.max_context_tokens,
                 include_flow_analysis=request.include_flow_analysis,
+                include_cross_service=request.include_cross_service,
             )
 
             orchestration_result = orchestrator.orchestrate(orchestration_request)

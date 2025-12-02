@@ -10,6 +10,7 @@ from .base import (
 )
 from .python_parser import PythonParser
 from .dart_parser import DartParser
+from .dart_ast_parser import DartAstParser
 from .pdf_parser import PDFParser
 from .markdown_parser import MarkdownParser
 from .procedure_extractor import ProcedureExtractor
@@ -24,6 +25,7 @@ __all__ = [
     "detect_language",
     "PythonParser",
     "DartParser",
+    "DartAstParser",
     "PDFParser",
     "MarkdownParser",
     "ProcedureExtractor",

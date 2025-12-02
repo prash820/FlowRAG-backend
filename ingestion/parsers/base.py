@@ -294,8 +294,9 @@ def get_parser(language: str) -> Optional[BaseParser]:
         from .javascript_parser import TypeScriptParser
         return TypeScriptParser()
     elif language == "dart":
-        from .dart_parser import DartParser
-        return DartParser()
+        # Use AST-based parser for 100% accuracy (falls back to regex if Dart not available)
+        from .dart_ast_parser import DartAstParser
+        return DartAstParser()
     elif language == "go":
         from .go_parser import GoParser
         return GoParser()
