@@ -77,6 +77,17 @@ class RelationType(str, Enum):
     PART_OF = "PART_OF"
     HAS_SECTION = "HAS_SECTION"
 
+    # =========================================================================
+    # Data Flow Relationships (Feature Flag: enable_data_flow_relationships)
+    # These relationships enable automatic dependency detection and
+    # parallelization opportunity identification.
+    # =========================================================================
+    DATA_FLOWS_TO = "DATA_FLOWS_TO"       # Variable/data passing between calls
+    RETURNS_TYPE = "RETURNS_TYPE"          # Function return type relationship
+    BLOCKS_ON = "BLOCKS_ON"                # Explicit blocking dependency
+    PARALLELIZABLE_WITH = "PARALLELIZABLE_WITH"  # Can run concurrently
+    IN_WAVE = "IN_WAVE"                    # Belongs to parallelization wave
+
 
 # ============================================================================
 # Node Models
@@ -271,6 +282,114 @@ class CallsAPIRelationship(BaseRelationship):
 
 
 # ============================================================================
+# Data Flow Relationships (Feature Flag: enable_data_flow_relationships)
+# ============================================================================
+
+class DataFlowsToRelationship(BaseRelationship):
+    """
+    Data flow relationship tracking variable passing between function calls.
+
+    Example: customerClient.get() returns customerData which is passed to
+    creditClient.get(customerData.ssn) - this creates a DATA_FLOWS_TO edge.
+
+    Feature Flag: enable_data_flow_relationships
+    """
+
+    type: RelationType = RelationType.DATA_FLOWS_TO
+    field: str = Field(..., description="Field/property being passed (e.g., 'ssn', 'reportId')")
+    source_variable: str = Field(..., description="Variable name in source (e.g., 'customerData')")
+    target_parameter: Optional[str] = Field(None, description="Parameter name in target function")
+    source_line: int = Field(..., description="Line number of source assignment")
+    target_line: int = Field(..., description="Line number of target usage")
+    is_conditional: bool = Field(
+        default=False,
+        description="Whether the flow is inside a conditional (if/else)"
+    )
+    condition: Optional[str] = Field(
+        None,
+        description="Condition expression if is_conditional is True"
+    )
+
+
+class BlocksOnRelationship(BaseRelationship):
+    """
+    Explicit blocking dependency between operations.
+
+    Different from DEPENDS_ON in that this specifically indicates
+    the operation cannot proceed until the dependency completes.
+
+    Feature Flag: enable_data_flow_relationships
+    """
+
+    type: RelationType = RelationType.BLOCKS_ON
+    reason: str = Field(..., description="Why this blocks (e.g., 'requires SSN from customer data')")
+    is_hard_dependency: bool = Field(
+        default=True,
+        description="True if cannot proceed at all without this, False if can proceed with defaults"
+    )
+
+
+class ParallelizableWithRelationship(BaseRelationship):
+    """
+    Indicates two operations can run in parallel.
+
+    This is the inverse of BLOCKS_ON - when there's no data dependency
+    between two operations, they can be parallelized.
+
+    Feature Flag: enable_parallelization_waves
+    """
+
+    type: RelationType = RelationType.PARALLELIZABLE_WITH
+    wave_number: int = Field(..., description="Which parallelization wave this belongs to")
+    reason: str = Field(
+        default="no_data_dependency",
+        description="Why these can be parallelized"
+    )
+    estimated_speedup: Optional[float] = Field(
+        None,
+        description="Estimated speedup factor if parallelized"
+    )
+
+
+class InWaveRelationship(BaseRelationship):
+    """
+    Groups operations into parallelization waves.
+
+    Wave 1: All operations with no dependencies
+    Wave 2: Operations that depend only on Wave 1
+    Wave 3: Operations that depend on Wave 1 or 2
+    etc.
+
+    Feature Flag: enable_parallelization_waves
+    """
+
+    type: RelationType = RelationType.IN_WAVE
+    wave_number: int = Field(..., description="Wave number (1-indexed)")
+    wave_size: int = Field(..., description="Number of operations in this wave")
+    can_start_after_wave: Optional[int] = Field(
+        None,
+        description="Which wave must complete before this can start"
+    )
+
+
+class ReturnsTypeRelationship(BaseRelationship):
+    """
+    Tracks function return types for type-aware analysis.
+
+    Feature Flag: enable_data_flow_relationships
+    """
+
+    type: RelationType = RelationType.RETURNS_TYPE
+    type_name: str = Field(..., description="Return type name (e.g., 'CustomerData', 'Promise<CreditScore>')")
+    is_async: bool = Field(default=False, description="Whether return is wrapped in Promise/Future")
+    is_nullable: bool = Field(default=False, description="Whether return can be null/undefined")
+    fields: list[str] = Field(
+        default_factory=list,
+        description="Known fields on the return type"
+    )
+
+
+# ============================================================================
 # Schema Metadata
 # ============================================================================
 
@@ -337,5 +456,11 @@ def get_relationship_model(rel_type: RelationType) -> type[BaseRelationship]:
         RelationType.PARALLEL_WITH: ParallelWithRelationship,
         RelationType.HANDLES: HandlesRelationship,
         RelationType.CALLS_API: CallsAPIRelationship,
+        # Data flow relationships (Feature Flag: enable_data_flow_relationships)
+        RelationType.DATA_FLOWS_TO: DataFlowsToRelationship,
+        RelationType.BLOCKS_ON: BlocksOnRelationship,
+        RelationType.PARALLELIZABLE_WITH: ParallelizableWithRelationship,
+        RelationType.IN_WAVE: InWaveRelationship,
+        RelationType.RETURNS_TYPE: ReturnsTypeRelationship,
     }
-    return mapping.get(rel_type, BaseNode)
+    return mapping.get(rel_type, BaseRelationship)

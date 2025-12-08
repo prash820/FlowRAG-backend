@@ -605,9 +605,9 @@ Generate the service overview now based on the ACTUAL code provided:"""
 
             components = []
             for r in results:
-                component_type = r.get("type", "unknown")
-                name = r.get("name", "Unknown")
-                file_path = r.get("file_path", "")
+                component_type = r.get("type") or "unknown"  # Handle None values
+                name = r.get("name") or "Unknown"
+                file_path = r.get("file_path") or ""
 
                 # Infer responsibilities based on type/name
                 responsibilities = []

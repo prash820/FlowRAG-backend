@@ -86,6 +86,7 @@ async def trace_code_flow(request: TraceRequest) -> TraceResponse:
                 properties=rel.get('properties', {})
             )
             for rel in result['relationships']
+            if rel.get('to_id') is not None  # Filter out relationships with null to_id
         ]
 
         return TraceResponse(

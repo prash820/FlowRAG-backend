@@ -48,10 +48,10 @@ class QueryRequest(BaseModel):
         description="Stream response in real-time"
     )
     temperature: float = Field(
-        default=0.2,
+        default=0.1,
         ge=0.0,
         le=2.0,
-        description="LLM generation temperature"
+        description="LLM generation temperature (lower = more deterministic, less hallucination)"
     )
     provider: Optional[str] = Field(
         None,

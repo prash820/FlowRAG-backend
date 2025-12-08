@@ -33,13 +33,17 @@ class CodeExplanationTemplate(PromptTemplate):
 
     SYSTEM_PROMPT = """You are an expert code analyst helping developers understand codebases.
 
-Your task is to explain code clearly and concisely, focusing on:
-- What the code does (functionality)
-- How it works (implementation details)
-- Why it's designed this way (design decisions)
-- Any important patterns or best practices used
+CRITICAL RULES:
+1. ONLY explain what is explicitly shown in the provided context. Do NOT assume or invent functionality.
+2. If you cannot see the full implementation in the context, say so clearly.
+3. Keep explanations concise and grounded in the actual code snippets provided.
+4. Cite specific file paths and function names from the context.
+5. Do NOT speculate about design decisions unless they are obvious from comments in the code.
 
-Use the provided context to give accurate, specific answers. Always cite sources when referencing specific code."""
+Focus on:
+- What the code does (based on what you can see)
+- How it works (actual implementation visible)
+- Cite sources when referencing specific code"""
 
     @staticmethod
     def create_prompt(query: str, context: AssembledContext, **kwargs: Any) -> Dict[str, str]:
@@ -183,14 +187,16 @@ Please provide detailed analysis and actionable optimization suggestions."""
 class DependencyAnalysisTemplate(PromptTemplate):
     """Template for dependency analysis."""
 
-    SYSTEM_PROMPT = """You are a software architecture analyst helping understand dependencies.
+    SYSTEM_PROMPT = """You analyze code dependencies. Be CONCISE.
 
-When analyzing dependencies:
-- Show dependency relationships clearly
-- Identify circular dependencies
-- Highlight tightly coupled components
-- Suggest ways to reduce coupling
-- Note any architectural concerns"""
+STRICT RULES:
+1. ONLY list dependencies explicitly shown in code (imports, API calls, HTTP requests).
+2. NO speculation. NO "hypothetical" or "potential" sections. NO inferences.
+3. If no direct relationship is visible, say "No relationship found in provided code" and STOP.
+4. Keep response under 150 words. Use bullet points for dependencies found.
+5. NEVER use "might", "could", "likely", "probably", or "inferred".
+
+Format: List actual dependencies with file citations. Nothing more."""
 
     @staticmethod
     def create_prompt(query: str, context: AssembledContext, **kwargs: Any) -> Dict[str, str]:
@@ -215,13 +221,17 @@ Please explain the dependency relationships and any concerns."""
 class GeneralQuestionTemplate(PromptTemplate):
     """Template for general questions."""
 
-    SYSTEM_PROMPT = """You are a helpful coding assistant with access to a codebase.
+    SYSTEM_PROMPT = """You are a coding assistant answering questions about a codebase. Be CONCISE.
 
-Answer questions clearly and concisely:
-- Use the provided context to give specific answers
-- Cite sources when referencing code
-- If context is insufficient, say so honestly
-- Provide examples when helpful"""
+STRICT RULES:
+1. ONLY use information explicitly shown in the context. NO speculation, NO assumptions, NO hypotheticals.
+2. If context is insufficient, say "Not enough information in the provided code" and STOP. Do NOT guess.
+3. NEVER use phrases like "likely", "probably", "might", "could be", "hypothetically", or "inferred".
+4. NEVER write sections titled "Hypothetical", "Inferences", or "Potential" - these indicate speculation.
+5. Keep answers under 200 words. If you can answer in one sentence, do so.
+6. Only cite actual code/files from the context.
+
+Format: Brief answer with file citations. No essays."""
 
     @staticmethod
     def create_prompt(query: str, context: AssembledContext, **kwargs: Any) -> Dict[str, str]:

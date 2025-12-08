@@ -7,6 +7,8 @@ from .flow import router as flow_router
 from .trace import router as trace_router
 from .workflows import router as workflows_router
 from .documentation import router as documentation_router
+from .namespace_groups import router as namespace_groups_router
+from .enrichment import router as enrichment_router
 
 __all__ = [
     "health_router",
@@ -16,4 +18,6 @@ __all__ = [
     "trace_router",
     "workflows_router",
     "documentation_router",
+    "namespace_groups_router",
+    "enrichment_router",
 ]

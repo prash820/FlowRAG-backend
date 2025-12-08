@@ -436,7 +436,10 @@ class ContextAssembler:
         items.sort(key=lambda x: x.relevance_score, reverse=True)
 
         # Filter out very low scores
-        items = [item for item in items if item.relevance_score > 0.3]
+        # Note: For cosine similarity with text-embedding-3-small, scores of 0.15-0.3
+        # are typical for semantic matches. We use a lower threshold to avoid
+        # filtering out valid results.
+        items = [item for item in items if item.relevance_score > 0.1]
 
         return items
 

@@ -109,6 +109,14 @@ class IngestDirectoryRequest(BaseModel):
         default=False,
         description="Auto-generate documentation after ingestion and add as metadata"
     )
+    semantic_enrichment: bool = Field(
+        default=False,
+        description="Enrich code units with LLM-generated summaries for better semantic search"
+    )
+    enrichment_options: Optional[dict] = Field(
+        default=None,
+        description="Options for semantic enrichment: include_glossary, include_service_doc, max_code_units"
+    )
 
     @field_validator("directory_path")
     @classmethod
@@ -206,12 +214,20 @@ class IngestWorkflowRequest(BaseModel):
     workflow_name: str = Field(..., description="Name of the workflow")
     recursive: bool = Field(default=True, description="Recursively ingest subdirectories")
     generate_documentation: bool = Field(
-        default=True,
-        description="Auto-generate documentation for each service"
+        default=False,
+        description="Auto-generate documentation for each service (uses LLM tokens)"
     )
     detect_inter_service_calls: bool = Field(
         default=True,
         description="Detect calls between services in the workflow"
+    )
+    semantic_enrichment: bool = Field(
+        default=False,
+        description="Enrich code units with LLM-generated summaries for better semantic search"
+    )
+    enrichment_options: Optional[dict] = Field(
+        default=None,
+        description="Options for semantic enrichment: include_glossary, include_service_doc, max_code_units"
     )
     overwrite: bool = Field(default=False, description="Overwrite existing data")
 

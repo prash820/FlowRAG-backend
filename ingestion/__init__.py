@@ -1,6 +1,7 @@
 """Ingestion module for FlowRAG."""
 
 from .parsers.base import get_parser, detect_language, CodeUnit, ParseResult
+from .parsers.data_flow_extractor import get_data_flow_extractor, DataFlowExtractor
 from .chunkers.document_chunker import DocumentChunker, DocumentChunk
 from .embeddings import get_embedding_service
 from .loaders.neo4j_loader import get_neo4j_loader
@@ -11,6 +12,8 @@ __all__ = [
     "detect_language",
     "CodeUnit",
     "ParseResult",
+    "DataFlowExtractor",
+    "get_data_flow_extractor",
     "DocumentChunker",
     "DocumentChunk",
     "get_embedding_service",

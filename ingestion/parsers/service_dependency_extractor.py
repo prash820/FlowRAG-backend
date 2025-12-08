@@ -156,6 +156,9 @@ class ServiceDependencyExtractor:
         """Extract API calls from TypeScript/JavaScript code."""
         api_calls = []
 
+        # First, extract any URL constants/properties defined in the file
+        url_constants = self._extract_typescript_url_constants(code)
+
         # Pattern 1: fetch() calls
         fetch_pattern = r'fetch\s*\(\s*[`"\']([^`"\']+)[`"\']'
         for match in re.finditer(fetch_pattern, code):
@@ -181,7 +184,7 @@ class ServiceDependencyExtractor:
                 }
                 api_calls.append(api_call)
 
-        # Pattern 2: axios calls
+        # Pattern 2: axios calls with direct URL
         axios_pattern = r'axios\.(get|post|put|delete|patch)\s*\(\s*[`"\']([^`"\']+)[`"\']'
         for match in re.finditer(axios_pattern, code):
             http_method = match.group(1).upper()
@@ -203,7 +206,131 @@ class ServiceDependencyExtractor:
                 }
                 api_calls.append(api_call)
 
+        # Pattern 3: httpClient/this.httpClient calls with template strings
+        # e.g., this.httpClient.post(`${this.ORCHESTRATION_LAYER_URL}/api/v1/process`, ...)
+        http_client_pattern = r'(?:this\.)?httpClient\.(get|post|put|delete|patch)\s*\(\s*`\$\{(?:this\.)?([A-Z_]+)\}([^`]*)`'
+        for match in re.finditer(http_client_pattern, code):
+            http_method = match.group(1).upper()
+            url_var = match.group(2)
+            url_path = match.group(3)
+
+            # Look up the URL constant
+            base_url = url_constants.get(url_var, '')
+            full_url = base_url + url_path if base_url else url_path
+
+            target_service, clean_url = self._resolve_service_from_url(full_url, None)
+
+            # If no match from URL, try matching the variable name to service mappings
+            if not target_service:
+                target_service = self._resolve_service_from_url_var(url_var)
+                clean_url = full_url or f"${{{url_var}}}{url_path}"
+
+            if target_service:
+                line_num = code[:match.start()].count('\n') + 1
+                function_name = self._find_containing_function(code, match.start())
+
+                api_call = {
+                    'source_namespace': namespace,
+                    'source_file': file_path,
+                    'source_function': function_name or 'unknown',
+                    'target_service': target_service,
+                    'target_url': clean_url,
+                    'http_method': http_method,
+                    'line_number': line_num,
+                }
+                api_calls.append(api_call)
+
+        # Pattern 4: httpClient calls with relative paths (uses baseURL from axios.create)
+        # e.g., this.httpClient.post('/api/v1/calculate-pricing', ...)
+        http_client_relative_pattern = r'(?:this\.)?httpClient\.(get|post|put|delete|patch)\s*\(\s*[\'"]([^\'"]+)[\'"]'
+        for match in re.finditer(http_client_relative_pattern, code):
+            http_method = match.group(1).upper()
+            url_path = match.group(2)
+
+            # For relative paths, we need to find the baseURL from axios.create or class constant
+            base_url = self._extract_axios_base_url(code) or ''
+            full_url = base_url + url_path if base_url else url_path
+
+            target_service, clean_url = self._resolve_service_from_url(full_url, None)
+
+            if target_service:
+                line_num = code[:match.start()].count('\n') + 1
+                function_name = self._find_containing_function(code, match.start())
+
+                api_call = {
+                    'source_namespace': namespace,
+                    'source_file': file_path,
+                    'source_function': function_name or 'unknown',
+                    'target_service': target_service,
+                    'target_url': clean_url,
+                    'http_method': http_method,
+                    'line_number': line_num,
+                }
+                api_calls.append(api_call)
+
         return api_calls
+
+    def _extract_typescript_url_constants(self, code: str) -> Dict[str, str]:
+        """
+        Extract URL constants/properties from TypeScript code.
+
+        Looks for patterns like:
+        - private readonly ORCHESTRATION_LAYER_URL = process.env.X || 'http://...'
+        - const API_URL = 'http://...'
+        """
+        url_constants = {}
+
+        # Pattern: readonly/const URL_VAR = process.env.X || 'http://...'
+        # Captures the variable name and the fallback URL
+        pattern = r'(?:readonly|const|let|var)\s+([A-Z_]+_URL)\s*=\s*(?:process\.env\.[A-Z_]+\s*\|\|\s*)?[\'"]([^\'"]+)[\'"]'
+        for match in re.finditer(pattern, code):
+            var_name = match.group(1)
+            url_value = match.group(2)
+            url_constants[var_name] = url_value
+            logger.debug(f"Found URL constant: {var_name} = {url_value}")
+
+        return url_constants
+
+    def _extract_axios_base_url(self, code: str) -> Optional[str]:
+        """
+        Extract baseURL from axios.create() configuration.
+
+        Looks for patterns like:
+        - axios.create({ baseURL: 'http://...', ... })
+        - axios.create({ baseURL: this.ENGINE_WRAPPER_URL, ... })
+        """
+        # Pattern 1: Direct URL in baseURL
+        pattern1 = r'axios\.create\s*\(\s*\{[^}]*baseURL:\s*[\'"]([^\'"]+)[\'"]'
+        match = re.search(pattern1, code, re.DOTALL)
+        if match:
+            return match.group(1)
+
+        # Pattern 2: Variable reference in baseURL
+        pattern2 = r'axios\.create\s*\(\s*\{[^}]*baseURL:\s*(?:this\.)?([A-Z_]+_URL)'
+        match = re.search(pattern2, code, re.DOTALL)
+        if match:
+            var_name = match.group(1)
+            url_constants = self._extract_typescript_url_constants(code)
+            return url_constants.get(var_name)
+
+        return None
+
+    def _resolve_service_from_url_var(self, url_var: str) -> Optional[str]:
+        """
+        Resolve service namespace from a URL variable name.
+
+        Maps variable names like ORCHESTRATION_LAYER_URL to service namespaces.
+        """
+        # Normalize the variable name for matching
+        normalized = url_var.lower().replace('_url', '').replace('_', '-')
+
+        for service_key, namespace in self.service_url_mappings.items():
+            service_key_normalized = service_key.lower().replace('_', '-')
+            if service_key_normalized in normalized or normalized in service_key_normalized:
+                logger.debug(f"Matched URL var {url_var} to service {namespace}")
+                return namespace
+
+        return None
 
     def _extract_python_api_calls(
         self, code: str, file_path: str, namespace: str

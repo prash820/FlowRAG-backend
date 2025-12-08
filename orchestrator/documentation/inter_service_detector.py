@@ -75,6 +75,12 @@ class InterServiceCallDetector:
         # Go
         r"http\.(?:Get|Post|Head|Put|Patch|Delete)\s*\(['\"](?P<url>[^'\"]+)",
         r"client\.Do\s*\(",
+
+        # Dart/Flutter
+        r"http\.(?P<method>get|post|put|delete|patch)\s*\(",
+        r"http\.(?P<method>get|post|put|delete|patch)\s*\(\s*Uri\.parse",
+        r"Dio\(\)\.(?P<method>get|post|put|delete|patch)",
+        r"(?:_baseUrl|baseUrl)\s*[+/]",  # URL composition pattern
     ]
 
     # gRPC patterns
@@ -137,7 +143,7 @@ class InterServiceCallDetector:
         MATCH (n)
         WHERE n.namespace = $namespace
           AND n.code IS NOT NULL
-          AND (n.type = 'function' OR n.type = 'method' OR n.type = 'class')
+          AND (n.type = 'Function' OR n.type = 'Method' OR n.type = 'Class')
         RETURN n.file_path as file_path,
                n.name as name,
                n.code as code,
@@ -195,11 +201,40 @@ class InterServiceCallDetector:
         logger.info(f"Detected {len(service_calls)} inter-service calls")
         return service_calls
 
+    # Environment variable patterns that reference service URLs
+    ENV_SERVICE_PATTERNS = [
+        # Dart dotenv: dotenv.env['SERVICE_NAME_URL']
+        r"dotenv\.env\s*\[\s*['\"](?P<service>\w+)_URL['\"]\s*\]",
+        # JavaScript process.env.SERVICE_NAME_URL
+        r"process\.env\.(?P<service>\w+)_URL",
+        r"process\.env\s*\[\s*['\"](?P<service>\w+)_URL['\"]\s*\]",
+        # Python os.environ / os.getenv
+        r"os\.(?:environ|getenv)\s*\(\s*['\"](?P<service>\w+)_URL['\"]\s*\)",
+        r"os\.environ\s*\[\s*['\"](?P<service>\w+)_URL['\"]\s*\]",
+        # Generic fallback URL variable assignments
+        r"(?:_baseUrl|baseUrl|BASE_URL|serviceUrl)\s*=.*?(?P<service>\w+provider|\w+service)",
+    ]
+
+    def _extract_service_from_env_vars(self, code: str) -> Optional[str]:
+        """Extract target service name from environment variable patterns."""
+        for pattern in self.ENV_SERVICE_PATTERNS:
+            match = re.search(pattern, code, re.IGNORECASE)
+            if match and "service" in match.groupdict():
+                service_name = match.group("service")
+                # Normalize service name (e.g., SHOP_DATA_PROVIDER -> ShopDataProvider)
+                # Remove common suffixes for matching
+                service_name = service_name.replace("_", "").lower()
+                return service_name
+        return None
+
     def _detect_http_calls(
         self, file_path: str, function_name: str, code: str, line_start: int
     ) -> List[ServiceCall]:
         """Detect HTTP client calls."""
         calls = []
+
+        # First, try to extract service name from environment variables in the code
+        env_service = self._extract_service_from_env_vars(code)
 
         for pattern in self.HTTP_PATTERNS:
             for match in re.finditer(pattern, code, re.IGNORECASE):
@@ -216,11 +251,18 @@ class InterServiceCallDetector:
                 # Extract line number
                 line_num = code[:match.start()].count("\n") + line_start
 
-                # Extract code snippet
-                snippet = self._extract_snippet(code, match.start(), match.end())
+                # Extract code snippet (larger for context)
+                snippet = self._extract_snippet(code, match.start(), match.end(), context=200)
 
-                # Try to infer target service from URL
+                # Try to infer target service from URL first, then from env vars
                 target_service = self._infer_service_from_url(url) if url else None
+                if not target_service:
+                    target_service = env_service
+
+                # Create synthetic endpoint if we have target service but no URL
+                endpoint = url
+                if not endpoint and target_service:
+                    endpoint = f"service://{target_service}"
 
                 calls.append(
                     ServiceCall(
@@ -228,7 +270,7 @@ class InterServiceCallDetector:
                         source_file=file_path,
                         source_function=function_name,
                         target_service=target_service,
-                        endpoint=url,
+                        endpoint=endpoint,
                         method=method,
                         line_number=line_num,
                         code_snippet=snippet,

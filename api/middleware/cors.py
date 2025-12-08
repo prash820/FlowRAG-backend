@@ -27,10 +27,16 @@ def get_allowed_origins() -> List[str]:
     dev_origins = [
         "http://localhost:3000",   # React dev server
         "http://localhost:5173",   # Vite dev server
+        "http://localhost:5174",   # Vite dev server (alternate port)
+        "http://localhost:5175",   # Vite dev server (alternate port)
+        "http://localhost:5176",   # Vite dev server (alternate port)
         "http://localhost:8080",   # Alternative frontend
         "http://localhost:8501",   # Streamlit UI
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+        "http://127.0.0.1:5176",
         "http://127.0.0.1:8080",
         "http://127.0.0.1:8501",
     ]

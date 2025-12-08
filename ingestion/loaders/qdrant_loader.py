@@ -2,10 +2,11 @@
 Qdrant data loader for vector embeddings.
 
 Loads code units and documents into Qdrant vector database.
+Supports semantic enrichment for improved retrieval.
 Ingestion Agent is responsible for this module.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Union
 import logging
 
 from databases import get_qdrant_client
@@ -96,6 +97,196 @@ class QdrantLoader:
 
         # Return with vectors_stored key for API compatibility
         return {"vectors_stored": result.get("upserted_count", 0)}
+
+    def load_enriched_code_units(
+        self,
+        enriched_units: List[Any],  # List[EnrichedCodeUnit]
+        namespace: str,
+    ) -> Dict[str, Any]:
+        """
+        Load semantically enriched code units into Qdrant.
+
+        Uses the enriched embedding_text for generating embeddings,
+        which includes natural language summaries for better semantic matching.
+
+        Args:
+            enriched_units: List of EnrichedCodeUnit objects
+            namespace: Namespace
+
+        Returns:
+            Load statistics
+        """
+        if not enriched_units:
+            return {"vectors_stored": 0}
+
+        # Use the enriched embedding_text for generating embeddings
+        texts = [unit.embedding_text for unit in enriched_units]
+
+        # Generate embeddings from enriched text
+        logger.info(f"Generating embeddings for {len(texts)} enriched code units...")
+        embeddings = self.embedding_service.generate_embeddings(texts)
+
+        # Prepare vectors for upsert with enriched metadata
+        vectors = []
+        for unit, embedding in zip(enriched_units, embeddings):
+            vectors.append({
+                "id": unit.id,
+                "vector": embedding,
+                "metadata": {
+                    "type": "code",
+                    "code_unit_type": unit.code_unit_type,
+                    "name": unit.name,
+                    "file_path": unit.file_path,
+                    "language": unit.language,
+                    "line_start": unit.line_start,
+                    "line_end": unit.line_end,
+                    "signature": unit.signature,
+                    "docstring": unit.docstring,
+                    "full_code": unit.code,
+                    # Enrichment fields
+                    "semantic_summary": unit.semantic_summary,
+                    "purpose": unit.purpose,
+                    "domain_concepts": unit.domain_concepts,
+                    "related_features": unit.related_features,
+                    "is_enriched": True,
+                },
+            })
+
+        # Upsert to Qdrant
+        result = self.client.upsert_vectors(vectors, namespace)
+
+        logger.info(f"Loaded {result['upserted_count']} enriched code unit embeddings")
+
+        return {
+            "vectors_stored": result.get("upserted_count", 0),
+            "enriched": True,
+        }
+
+    def load_service_documentation(
+        self,
+        service_doc: Any,  # ServiceDocumentation
+        namespace: str,
+    ) -> Dict[str, Any]:
+        """
+        Load service-level documentation into Qdrant.
+
+        Creates a high-level documentation vector that helps answer
+        questions like "What does this service do?"
+
+        Args:
+            service_doc: ServiceDocumentation object
+            namespace: Namespace
+
+        Returns:
+            Load statistics
+        """
+        import hashlib
+
+        # Generate embedding from full documentation
+        doc_embedding = self.embedding_service.generate_embeddings(
+            [service_doc.full_documentation]
+        )[0]
+
+        # Generate unique ID for service documentation
+        doc_id = f"{namespace}_service_doc"
+        doc_hash = hashlib.md5(doc_id.encode()).hexdigest()[:16]
+
+        # Prepare vector with comprehensive metadata
+        doc_vector = {
+            "id": doc_hash,
+            "vector": doc_embedding,
+            "metadata": {
+                "type": "service_documentation",
+                "namespace": namespace,
+                "service_name": service_doc.service_name,
+                "description": service_doc.description,
+                "purpose": service_doc.purpose,
+                "key_features": service_doc.key_features,
+                "main_components": service_doc.main_components,
+                "external_dependencies": service_doc.external_dependencies,
+                "api_patterns": service_doc.api_patterns,
+                "full_documentation": service_doc.full_documentation,
+                "is_service_documentation": True,
+                "original_id": doc_id,
+            },
+        }
+
+        # Upsert to Qdrant
+        result = self.client.upsert_vectors([doc_vector], namespace)
+
+        logger.info(f"Loaded service documentation for {namespace}")
+
+        return {
+            "vectors_stored": result.get("upserted_count", 0),
+            "service_documentation": True,
+        }
+
+    def load_glossary_terms(
+        self,
+        terms: List[Any],  # List[GlossaryTerm]
+        namespace: str,
+    ) -> Dict[str, Any]:
+        """
+        Load glossary terms into Qdrant.
+
+        Glossary terms help with domain-specific queries and acronym expansion.
+
+        Args:
+            terms: List of GlossaryTerm objects
+            namespace: Namespace
+
+        Returns:
+            Load statistics
+        """
+        if not terms:
+            return {"vectors_stored": 0}
+
+        import hashlib
+
+        vectors = []
+        for term in terms:
+            # Build embedding text for the term
+            parts = [f"Term: {term.term}"]
+            if term.full_name:
+                parts.append(f"Full name: {term.full_name}")
+            parts.append(f"Description: {term.description}")
+            if term.usage_context:
+                parts.append(f"Context: {term.usage_context}")
+
+            term_text = "\n".join(parts)
+
+            # Generate embedding
+            term_embedding = self.embedding_service.generate_embeddings([term_text])[0]
+
+            # Generate ID
+            term_id = f"{namespace}_glossary_{term.term}"
+            term_hash = hashlib.md5(term_id.encode()).hexdigest()[:16]
+
+            vectors.append({
+                "id": term_hash,
+                "vector": term_embedding,
+                "metadata": {
+                    "type": "glossary",
+                    "term": term.term,
+                    "full_name": term.full_name,
+                    "description": term.description,
+                    "related_services": term.related_services,
+                    "usage_context": term.usage_context,
+                    "namespace": namespace,
+                    "is_glossary": True,
+                    "original_id": term_id,
+                },
+            })
+
+        # Upsert to Qdrant
+        result = self.client.upsert_vectors(vectors, namespace)
+
+        logger.info(f"Loaded {len(terms)} glossary terms for {namespace}")
+
+        return {
+            "vectors_stored": result.get("upserted_count", 0),
+            "glossary_terms": len(terms),
+        }
 
     def load_document_chunks(
         self,

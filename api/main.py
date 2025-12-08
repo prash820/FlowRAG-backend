@@ -24,6 +24,8 @@ from api.endpoints import (
     trace_router,
     workflows_router,
     documentation_router,
+    namespace_groups_router,
+    enrichment_router,
 )
 
 # Setup logging
@@ -65,6 +67,8 @@ app.include_router(flow_router, prefix=settings.api_prefix)
 app.include_router(trace_router, prefix=settings.api_prefix)
 app.include_router(workflows_router, prefix=settings.api_prefix)
 app.include_router(documentation_router, prefix=settings.api_prefix)
+app.include_router(namespace_groups_router, prefix=settings.api_prefix)
+app.include_router(enrichment_router, prefix=settings.api_prefix)
 
 
 @app.on_event("startup")
